@@ -14,7 +14,7 @@ import Observation
 #endif
 @objc
 @MainActor
-public class TemporaryApp: NSObject {
+public class TemporaryApp: NSObject, @preconcurrency Identifiable {
     @objc public var id: String
     @objc public var name: String
     @objc public var installPath: String?
@@ -44,8 +44,4 @@ public class TemporaryApp: NSObject {
         parent.hidden = self.hidden
         parent.host = host
     }
-}
-
-extension TemporaryApp: Identifiable {
-    // id: String already satisfies Identifiable
 }

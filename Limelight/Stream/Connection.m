@@ -45,7 +45,9 @@
 }
 
 static NSLock* initLock;
+#if !TARGET_OS_VISION
 static OpusMSDecoder* opusDecoder;
+#endif
 static id<ConnectionCallbacks> _callbacks;
 static int lastFrameNumber;
 static int activeVideoFormat;
@@ -53,11 +55,13 @@ static video_stats_t currentVideoStats;
 static video_stats_t lastVideoStats;
 static NSLock* videoStatsLock;
 
+#if !TARGET_OS_VISION
 static SDL_AudioDeviceID audioDevice;
 static OPUS_MULTISTREAM_CONFIGURATION audioConfig;
 static void* audioBuffer;
 static void* rawAudioBuffer;
 static int audioFrameSize;
+#endif
 
 #ifdef TARGET_OS_VISION
 static CoreAudioRenderer* audioRenderer;
@@ -347,8 +351,6 @@ void ArCleanup(void)
 
 void ArDecodeAndPlaySample(char* sampleData, int sampleLength)
 {
-    int decodeLen;
-    
 #ifdef TARGET_OS_VISION
     if (audioIsStopping) return;
 
@@ -380,6 +382,8 @@ void ArDecodeAndPlaySample(char* sampleData, int sampleLength)
         }
     }
 #else
+    int decodeLen;
+
     // Don't queue if there's already more than 30 ms of audio data waiting
     // in Moonlight's audio queue.
     if (LiGetPendingAudioDuration() > 30) {
@@ -599,7 +603,7 @@ void ClSetControllerLED(uint16_t controllerNumber, uint8_t r, uint8_t g, uint8_t
     _streamConfig.fps = config.frameRate;
     _streamConfig.bitrate = config.bitRate;
     _streamConfig.supportedVideoFormats = config.supportedVideoFormats;
-    _streamConfig.audioConfiguration = config.audioConfiguration;
+    _streamConfig.audioConfiguration = (int)config.audioConfiguration;
     
     // Since we require iOS 12 or above, we're guaranteed to be running
     // on a 64-bit device with ARMv8 crypto instructions, so we don't

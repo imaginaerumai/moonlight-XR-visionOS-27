@@ -174,7 +174,7 @@ struct SettingsView: View {
                             .keyboardType(.numberPad)
                             .fixedSize(horizontal: true, vertical: false)
                             .padding()
-                            .onChange(of: selectedAspectRatio) { newValue in
+                            .onChange(of: selectedAspectRatio) { _, newValue in
                                 if let newAspectRatio = newValue {
                                     Task { @MainActor in
                                         updateResolutionForAspectRatio(newAspectRatio)
@@ -294,7 +294,7 @@ struct SettingsView: View {
                             // Debounce: delay save to avoid frequent writes
                             saveTimer?.invalidate()
                             saveTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false) { _ in
-                                settings.save()
+                                Task { @MainActor in settings.save() }
                             }
                         }
                         
@@ -303,7 +303,7 @@ struct SettingsView: View {
                         .onChange(of: settings.realitykitRendererTilt) { _, _ in
                             saveTimer?.invalidate()
                             saveTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false) { _ in
-                                settings.save()
+                                Task { @MainActor in settings.save() }
                             }
                         }
                     
@@ -387,7 +387,7 @@ struct SettingsView: View {
                             // Debounce: delay save to avoid frequent writes
                             saveTimer?.invalidate()
                             saveTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false) { _ in
-                                settings.save()
+                                Task { @MainActor in settings.save() }
                             }
                         }
                     
@@ -682,6 +682,6 @@ private func simplifyFraction<I: BinaryInteger>(numerator: I, denominator: I) ->
 }
 
 #Preview {
-    @State var settings = TemporarySettings()
+    @Previewable @State var settings = TemporarySettings()
     return SettingsView(settings: $settings)
 }

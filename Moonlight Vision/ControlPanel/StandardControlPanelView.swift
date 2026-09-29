@@ -545,7 +545,7 @@ struct StandardControlPanelView: View {
     private func debouncedSaveDimPassthrough() {
         dimPassthroughSaveTimer?.invalidate()
         dimPassthroughSaveTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false) { _ in
-            viewModel.streamSettings.save()
+            Task { @MainActor in viewModel.streamSettings.save() }
         }
     }
     
@@ -587,5 +587,4 @@ private struct SpatialSettingsMonitorModifier: ViewModifier {
             }
     }
 }
-
 

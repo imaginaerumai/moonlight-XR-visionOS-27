@@ -4,3 +4,6 @@
 Build
 DerivedData
 *.DS_Store
+
+# Local FFmpeg build workspace
+BuildScripts/ffmpeg-build/

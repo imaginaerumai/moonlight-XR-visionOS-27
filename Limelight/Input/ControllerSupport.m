@@ -26,10 +26,10 @@ static const double MOUSE_SPEED_DIVISOR = 1.25;
 @implementation ControllerSupport {
     id _controllerConnectObserver;
     id _controllerDisconnectObserver;
-    GCMouse *_mouseConnectObserver;
-    GCMouse *_mouseDisconnectObserver;
-    GCKeyboard *_keyboardConnectObserver;
-    GCKeyboard *_keyboardDisconnectObserver;
+    id _mouseConnectObserver;
+    id _mouseDisconnectObserver;
+    id _keyboardConnectObserver;
+    id _keyboardDisconnectObserver;
 
     NSLock *_controllerStreamLock;
     NSMutableDictionary *_controllers;
@@ -174,13 +174,55 @@ static const double MOUSE_SPEED_DIVISOR = 1.25;
 
     -(void) registerKeyboardCallbacks:(GCKeyboard*) keyboard API_AVAILABLE(ios(14.0)) {
         __weak typeof(self) weakSelf = self;
-        
+        __block BOOL shiftDown = NO;
+        __block BOOL altDown = NO;
+        __block BOOL mHandledInThisPress = NO;      // guard against auto-repeat
+        __block CFTimeInterval lastToggleTime = 0;  // guard against multi-instance races
+
         keyboard.keyboardInput.keyChangedHandler = ^(GCKeyboardInput * _Nonnull input, GCControllerButtonInput * _Nonnull key, GCKeyCode keyCode, BOOL pressed) {
             __strong typeof(weakSelf) strongSelf = weakSelf;
             if (!strongSelf) return;
-            
+
             NSLog(@"[ControllerSupport] GCKeyboard Pressed: %ld (pressed: %d)", (long)keyCode, pressed);
-            
+
+            // Track modifier state for shortcut detection.
+            // GCKeyCode values observed in on-device visionOS logs:
+            //   225 = Left Shift,  229 = Right Shift
+            //   226 = Left Alt (Option), 230 = Right Alt
+            //   16  = M
+            if (keyCode == 225 || keyCode == 229) shiftDown = pressed;
+            if (keyCode == 226 || keyCode == 230) altDown = pressed;
+
+            // Reset the per-press guard when M is released.
+            if (keyCode == 16 && !pressed) {
+                mHandledInThisPress = NO;
+            }
+
+            // Shortcut: Shift+Option+M toggles FPS-locked mouse capture.
+            // Guards:
+            //   1. mHandledInThisPress swallows OS-level key auto-repeat.
+            //   2. lastToggleTime debounces against multiple ControllerSupport
+            //      instances registering callbacks simultaneously (real bug seen
+            //      in on-device logs: 65 GCEventInteraction inits per session).
+            //   3. Swallow M so it isn't sent to host.
+            if (pressed && keyCode == 16 && shiftDown && altDown && !mHandledInThisPress) {
+                CFTimeInterval now = CACurrentMediaTime();
+                if (now - lastToggleTime > 0.25) {
+                    lastToggleTime = now;
+                    mHandledInThisPress = YES;
+                    NSLog(@"[ControllerSupport] Shortcut Shift+Option+M detected -> toggling fpsMouseCapture");
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        [[NSNotificationCenter defaultCenter]
+                            postNotificationName:@"FPSMouseCaptureToggleRequested"
+                            object:nil];
+                    });
+                }
+                return;
+            }
+
+            // If M is part of a Shift+Option+M chord we already handled this press, swallow it.
+            if (pressed && keyCode == 16 && shiftDown && altDown) return;
+
             // Global Keyboard Capture (Option B) - Translate USB HID code to Win32 VK Code
             [KeyboardSupport sendUSBHIDKeyEvent:keyCode down:pressed];
         };
@@ -999,9 +1041,6 @@ static const double MOUSE_SPEED_DIVISOR = 1.25;
                 };
                 controller.physicalInputProfile.valueDidChangeHandler = ^(GCPhysicalInputProfile *gamepad, GCControllerElement *element) {
                     Controller* limeController = [self->_controllers objectForKey:[NSNumber numberWithInteger:0]];
-                    short leftStickX, leftStickY;
-                    short rightStickX, rightStickY;
-                    unsigned char leftTrigger, rightTrigger;
                     
                     if (self->_swapABXYButtons) {
                         UPDATE_BUTTON_FLAG(limeController, B_FLAG, gamepad.buttons[@"Button A"].pressed);
@@ -1456,14 +1495,23 @@ extern void UpdatePhysicalMouseActivityTime(void);
     DataManager* dataMan = [[DataManager alloc] init];
     _oscEnabled = (OnScreenControlsLevel)[dataMan getSettings].onscreenControls != OnScreenControlsLevelOff;
     
+    // Fix A: single GCEventInteraction instance (was double-initialized, orphaning the first).
+    // On visionOS 26+/iOS 26+, opt into exclusive Game Controller framework delivery via
+    // `receivesEventsInView = NO`, and route both gamepad + stylus events. Mouse and
+    // keyboard events are not part of GCUIEventTypes (they are delivered globally via
+    // GCMouse/GCKeyboard NotificationCenter observers) so they do not appear in the mask.
     _gcEventInteraction = [[GCEventInteraction alloc] init];
-    _gcEventInteraction.handledEventTypes = GCUIEventTypeGamepad;
-    
+    if (@available(iOS 26.0, tvOS 26.0, visionOS 26.0, macCatalyst 26.0, *)) {
+        _gcEventInteraction.handledEventTypes = GCUIEventTypeGamepad | GCUIEventTypeStylus;
+        _gcEventInteraction.receivesEventsInView = NO;
+    } else {
+        _gcEventInteraction.handledEventTypes = GCUIEventTypeGamepad;
+    }
+    NSLog(@"[ControllerSupport] GCEventInteraction initialized (handledEventTypes=0x%lX)",
+          (unsigned long)_gcEventInteraction.handledEventTypes);
+
     Log(LOG_I, @"Number of supported controllers connected: %d", [ControllerSupport getGamepadCount]);
     Log(LOG_I, @"Multi-controller: %d", _multiController);
-    
-    _gcEventInteraction = [[GCEventInteraction alloc] init];
-    _gcEventInteraction.handledEventTypes = GCUIEventTypeGamepad;
     
     for (GCController* controller in [GCController controllers]) {
         if ([ControllerSupport isSupportedGamepad:controller]) {

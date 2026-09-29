@@ -260,7 +260,7 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
         // "HDR display mode" — that was decoding SDR streams through pqInv() (too dark) while true PQ
         // still looked wrong next to the mistaken baseline.
         var isPQ = false
-        if let tfVal = CVBufferGetAttachment(imageBuffer, kCVImageBufferTransferFunctionKey, nil)?.takeUnretainedValue(),
+        if let tfVal = CVBufferCopyAttachment(imageBuffer, kCVImageBufferTransferFunctionKey, nil),
            CFGetTypeID(tfVal) == CFStringGetTypeID() {
             isPQ = CFEqual(tfVal as! CFString, kCVImageBufferTransferFunction_SMPTE_ST_2084_PQ)
         } else if hdrEnabled {
@@ -268,7 +268,7 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
         }
 
         var primariesType: UInt32 = 0 // 0=709, 1=2020, 2=SMPTE-C(601)
-        if let primVal = CVBufferGetAttachment(imageBuffer, kCVImageBufferColorPrimariesKey, nil)?.takeUnretainedValue(),
+        if let primVal = CVBufferCopyAttachment(imageBuffer, kCVImageBufferColorPrimariesKey, nil),
            CFGetTypeID(primVal) == CFStringGetTypeID() {
             let prim = primVal as! CFString
             if CFEqual(prim, kCVImageBufferColorPrimaries_ITU_R_2020) {
@@ -283,7 +283,7 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
         }
 
         var matrixType: UInt32 = 0 // 0=709, 1=2020, 2=601
-        if let mtxVal = CVBufferGetAttachment(imageBuffer, kCVImageBufferYCbCrMatrixKey, nil)?.takeUnretainedValue(),
+        if let mtxVal = CVBufferCopyAttachment(imageBuffer, kCVImageBufferYCbCrMatrixKey, nil),
            CFGetTypeID(mtxVal) == CFStringGetTypeID() {
             let mtx = mtxVal as! CFString
             if CFEqual(mtx, kCVImageBufferYCbCrMatrix_ITU_R_2020) {
@@ -683,14 +683,15 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
             displayLink?.preferredFramesPerSecond = Int(frameRate)
         }
 
-        displayLink?.add(to: .main, forMode: .default)
+        // Keep decoding while the main run loop is tracking gestures and controls.
+        displayLink?.add(to: .main, forMode: .common)
     }
 
     func stop() {
         print("DrawableVideoDecoder: stop()")
         displayLink?.invalidate()
         displayLink = nil
-        
+
         if let session = session {
             VTDecompressionSessionInvalidate(session)
             self.session = nil
@@ -786,9 +787,23 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
                     }
                 }
                 
-                VTDecompressionSessionCreate(allocator: kCFAllocatorDefault, formatDescription: formatDesc, decoderSpecification: decoderConfiguration as CFDictionary, imageBufferAttributes: attributes as CFDictionary, outputCallback: &decoderCallback, decompressionSessionOut: &session)
+                if let session {
+                    VTDecompressionSessionInvalidate(session)
+                    self.session = nil
+                }
 
-                AudioHelpers.fixAudioForSurroundForCurrentWindow()
+                let status = VTDecompressionSessionCreate(
+                    allocator: kCFAllocatorDefault,
+                    formatDescription: formatDesc,
+                    decoderSpecification: decoderConfiguration as CFDictionary,
+                    imageBufferAttributes: attributes as CFDictionary,
+                    outputCallback: &decoderCallback,
+                    decompressionSessionOut: &session
+                )
+                guard status == noErr, session != nil else {
+                    print("Failed to create video decompression session: \(status)")
+                    return DR_NEED_IDR
+                }
             } else {
                 return DR_NEED_IDR
             }
@@ -832,13 +847,13 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
         dataPtr: UnsafeMutablePointer<UInt8>,
         length: Int32
     ) -> CMVideoFormatDescription? {
-        if let old = formatDesc {
-            formatDesc = nil
-        }
+        formatDesc = nil
 
         if (videoFormat & VIDEO_FORMAT_MASK_H264) != 0 {
+            defer { parameterSetBuffers.removeAll(keepingCapacity: true) }
             return createH264FormatDescription()
         } else if (videoFormat & VIDEO_FORMAT_MASK_H265) != 0 {
+            defer { parameterSetBuffers.removeAll(keepingCapacity: true) }
             return createHEVCFormatDescription()
         } else if (videoFormat & VIDEO_FORMAT_MASK_AV1) != 0 {
             let frameData = Data(bytesNoCopy: dataPtr, count: Int(length), deallocator: .none)
@@ -850,6 +865,10 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
 
     private func createH264FormatDescription() -> CMVideoFormatDescription? {
         let parameterSetCount = parameterSetBuffers.count
+        guard parameterSetCount >= 2 else {
+            print("Cannot create H264 format description without SPS and PPS (received \(parameterSetCount) parameter sets)")
+            return nil
+        }
         var paramPtrs: [UnsafePointer<UInt8>] = []
         var paramSizes: [Int] = []
 
@@ -878,6 +897,10 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
 
     private func createHEVCFormatDescription() -> CMVideoFormatDescription? {
         let parameterSetCount = parameterSetBuffers.count
+        guard parameterSetCount >= 3 else {
+            print("Cannot create HEVC format description without VPS, SPS, and PPS (received \(parameterSetCount) parameter sets)")
+            return nil
+        }
         var paramPtrs: [UnsafePointer<UInt8>] = []
         var paramSizes: [Int] = []
 

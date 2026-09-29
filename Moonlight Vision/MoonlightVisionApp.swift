@@ -32,7 +32,6 @@ struct MoonlightVisionApp: SwiftUI.App {
     // runtime traps (e.g. EXC_BREAKPOINT in App.main) after repeated window/immersive toggles.
     @ObservedObject private var immersionManager = ImmersionStyleManager.shared
     @ObservedObject private var streamControlState = StreamControlState.shared
-    @ObservedObject private var sharePlayManager = SharePlayManager.shared
     
     var body: some Scene {
         WindowGroup("Main view", id: "mainView") {
@@ -143,7 +142,6 @@ struct MoonlightVisionApp: SwiftUI.App {
 @main
 struct MainWrapper {
     static func main() -> Void {
-        SDLMainWrapper.setMainReady();
         if #available(visionOS 2.0, *) {
             MoonlightVisionApp.main()
         } else {

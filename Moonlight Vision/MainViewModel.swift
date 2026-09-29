@@ -87,6 +87,7 @@ class MainViewModel: NSObject, ObservableObject, DiscoveryCallback, PairCallback
     private var boxArtCache: NSCache<TemporaryApp, UIImage>
     private var clientCert: Data
     private var uniqueId: String
+    private var appRefreshesInFlight: Set<String> = []
 
     private var opQueue = OperationQueue()
     private var currentlyPairingHost: TemporaryHost?
@@ -540,6 +541,15 @@ class MainViewModel: NSObject, ObservableObject, DiscoveryCallback, PairCallback
     }
 
     func refreshAppsFor(host: TemporaryHost) async {
+        guard appRefreshesInFlight.insert(host.id).inserted else {
+            print("refreshAppsFor - Refresh already in progress for host: \(host.name)")
+            return
+        }
+        defer {
+            appRefreshesInFlight.remove(host.id)
+            discoveryManager?.resumeDiscovery(for: host)
+        }
+
         print("refreshAppsFor - Refreshing apps for host: \(host.name)")
         discoveryManager?.pauseDiscovery(for: host)
 
@@ -554,8 +564,6 @@ class MainViewModel: NSObject, ObservableObject, DiscoveryCallback, PairCallback
         }
 
         // --- Back on main actor — process results ---
-        discoveryManager?.resumeDiscovery(for: host)
-
         if appListResponse?.isStatusOk() == true {
             let serverApps = (appListResponse!.getAppList() as! Set<TemporaryApp>)
             print("refreshAppsFor - Received \(serverApps.count) apps from server.")
