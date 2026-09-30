@@ -1,5 +1,10 @@
 # Moonlight XrOS
 
+
+Additional Note: if you're using AVP with Logitech/any multichannel keyboards or mouse, conserve checking this app, it solves the issue with often 'stale' connection after going from device X to AVP and back to X, it sometimes required to reset BT to have the devices back connected to the original device
+https://github.com/imaginaerumai/easyswitch-reconnect-macos
+
+
 [Moonlight for VisionOs/iOS/tvOS](https://moonlight-stream.org) is an open source client for [Sunshine](https://github.com/LizardByte/Sunshine) and NVIDIA GameStream. Moonlight for iOS/tvOS allows you to stream your full collection of games and apps from your powerful desktop computer to your iOS device or Apple TV.
 
 It also supports a Sunshine fork called [Apollo](https://github.com/ClassicOldSong/Apollo) which on Windows supports a Built-in Virtual Display with HDR support that matches the resolution/framerate config of your client automatically.
