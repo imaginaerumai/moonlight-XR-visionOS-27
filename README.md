@@ -1,7 +1,7 @@
 # Moonlight XrOS
 
 
-Additional Note: if you're using AVP with Logitech/any multichannel keyboards or mouse, conserve checking this app, it solves the issue with often 'stale' connection after going from device X to AVP and back to X, it sometimes required to reset BT to have the devices back connected to the original device
+Additional Note: if you're using AVP with Logitech/any multichannel keyboards or mouse, consider checking my easyswitch-reconnect-macos repo, it solves the issue with often 'stale' connection after going from device X to AVP and back to X, it sometimes required to reset BT to have the devices back connected to the original device
 https://github.com/imaginaerumai/easyswitch-reconnect-macos
 
 
