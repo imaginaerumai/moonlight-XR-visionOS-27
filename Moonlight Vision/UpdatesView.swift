@@ -64,8 +64,6 @@ struct UpdatesView: View {
                             .font(.body)
                         Text("- Vision Pro Spatial Audio: Restored functional audio streaming by properly activating AVAudioSession and integrating native SpatialAudioComponent for RealityKit. Fixed Opus decoding integration and eliminated \"Session lookup failed\" crashes.")
                             .font(.body)
-                        Text("- SharePlay & Spatial Personas: Integrated SharePlay-based co-watching using Spatial Personas for shared immersive viewing experiences.")
-                            .font(.body)
                         Text("- Reactive Lighting (Ambilight): Added a user-configurable Reactive Lighting toggle within the immersive control panel. The plane now realistically additive-blends a glow into the passthrough environment.")
                             .font(.body)
                         Text("- HDR Consistency & Calibration: Re-enabled 1:1 HDR EDR mapping for perfect RealityKit HDR and introduced a Calibration Mode toggle in the immersive control panel.")

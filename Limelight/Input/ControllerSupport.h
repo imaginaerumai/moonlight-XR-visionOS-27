@@ -9,6 +9,8 @@
 #import "Controller.h"
 #import <UIKit/UIKit.h>
 
+NS_ASSUME_NONNULL_BEGIN
+
 // It's in Swift's hands now
 @class TemporarySettings;
 
@@ -70,3 +72,5 @@
 - (void) detachGCEventInteractionFromView:(UIView *)view;
 
 @end
+
+NS_ASSUME_NONNULL_END

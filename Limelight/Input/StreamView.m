@@ -17,6 +17,9 @@
 #import "KeyboardInputField.h"
 #import "Moonlight-Swift.h"
 
+@interface StreamView () <X1KitMouseDelegate>
+@end
+
 static const double X1_MOUSE_SPEED_DIVISOR = 2.5;
 
 // Zero-width space (U+200B) as sentinel
@@ -457,7 +460,14 @@ static NSString * const kKeyboardSentinel = @"\u200B";
     button.imageView.contentMode = UIViewContentModeScaleAspectFit;
     button.imageView.backgroundColor = backgroundColor;
     button.imageView.layer.cornerRadius = 10.0;
+#if TARGET_OS_VISION
+    UIButtonConfiguration *configuration = [UIButtonConfiguration plainButtonConfiguration];
+    configuration.image = image;
+    configuration.contentInsets = NSDirectionalEdgeInsetsMake(6, 6, 6, 6);
+    button.configuration = configuration;
+#else
     button.imageEdgeInsets = UIEdgeInsetsMake(6, 6, 6, 6);
+#endif
     [button addTarget:target action:action forControlEvents:UIControlEventTouchUpInside];
     objc_setAssociatedObject(button, "keyCode", @(keyCode), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     objc_setAssociatedObject(button, "isToggleable", @(isToggleable), OBJC_ASSOCIATION_RETAIN_NONATOMIC);

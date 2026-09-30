@@ -122,15 +122,6 @@ struct StandardControlPanelView: View {
                     }
                 }
                 
-                // SharePlay
-                ModernActionTile(
-                    icon: "shareplay",
-                    title: "SharePlay",
-                    isActive: false
-                ) {
-                    SharePlayManager.shared.startSharePlay()
-                }
-                
                 // Spatial audio
                 let currentMode = SpatialAudioMode(rawValue: viewModel.streamSettings.spatialAudioMode) ?? .window
                 let fallback = controlState.isAudioFallbackModeActive
@@ -302,7 +293,6 @@ struct StandardControlPanelView: View {
         saveTimer?.invalidate()
         saveTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false) { _ in
             saveRealityKitSettings()
-            SharePlayManager.shared.broadcastCurrentTransform()
         }
     }
     
@@ -349,4 +339,3 @@ private struct SpatialSettingsMonitorModifier: ViewModifier {
             }
     }
 }
-

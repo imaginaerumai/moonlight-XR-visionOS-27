@@ -175,13 +175,6 @@ struct VolumeControlPanelView: View {
                     withAnimation { viewModel.streamSettings.statsOverlay.toggle() }
                 }
                 ModernActionTile(
-                    icon: "shareplay",
-                    title: "SharePlay",
-                    isActive: false
-                ) {
-                    SharePlayManager.shared.startSharePlay()
-                }
-                ModernActionTile(
                     icon: "light.beacon.max.fill",
                     title: "Reactive Lighting",
                     isActive: viewModel.streamSettings.reactiveLightingEnabled
@@ -270,10 +263,12 @@ struct VolumeControlPanelView: View {
     private func debouncedSaveDimPassthrough() {
         dimPassthroughSaveTimer?.invalidate()
         dimPassthroughSaveTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false) { _ in
-            if viewModel.streamSettings.rememberStreamSettings {
-                UserDefaults.standard.set(viewModel.streamSettings.dimPassthrough, forKey: "realitykitVolumeDimPassthrough")
+            Task { @MainActor in
+                if viewModel.streamSettings.rememberStreamSettings {
+                    UserDefaults.standard.set(viewModel.streamSettings.dimPassthrough, forKey: "realitykitVolumeDimPassthrough")
+                }
+                viewModel.streamSettings.save()
             }
-            viewModel.streamSettings.save()
         }
     }
     

@@ -1340,7 +1340,6 @@ struct _RealityKitStreamView: View {
                     startHighlightTimer()
                     // Sync position back to controlState for slider display
                     controlState.immersivePosition = screenPosition
-                    SharePlayManager.shared.broadcastCurrentTransform()
                     
                 case .gazeControl:
                     // Always cleanup gaze state
@@ -1390,7 +1389,6 @@ struct _RealityKitStreamView: View {
                 startHighlightTimer()
                 // Sync scale back to controlState for slider display
                 controlState.immersiveScale = screenScale
-                SharePlayManager.shared.broadcastCurrentTransform()
             }
     }
     
@@ -1510,7 +1508,11 @@ struct _RealityKitStreamView: View {
             .onAppear {
                 isInputFocused = true
             }
-            .allowsHitTesting(inputMode == .controller && !viewModel.streamSettings.fpsMouseCapture)
+            // Fix B: keep hit-testing enabled when FPS-locked capture is on so the view
+            // stays focused; without focus, GCMouse.mouseMovedHandler cannot deliver
+            // deltas on visionOS. The internal SwiftUIAbsoluteMouseTracker gestures are
+            // gated on !fpsMouseCapture and will no-op cleanly.
+            .allowsHitTesting(inputMode == .controller)
         }
     }
 
@@ -3464,7 +3466,13 @@ struct _RealityKitStreamView: View {
         self._streamConfig = streamConfig
         self.needsHdr = needsHdr
         self.isImmersive = isImmersive
-        self.controllerSupport = ControllerSupport(config: streamConfig.wrappedValue, delegate: DummyControllerDelegate())
+        // Fix: do NOT allocate ControllerSupport here. SwiftUI reinitializes this
+        // struct many times per session (65 times in a real capture), and each
+        // re-init previously created a fresh ControllerSupport instance — which
+        // reinstalled GCMouse/GCKeyboard callbacks and caused shortcut multi-fire
+        // plus main-thread hitching. controllerSupport is created lazily via
+        // .task on the root RealityView / on first use path (see line ~1015 for
+        // the setup path). The @State default (nil) is preserved across reinits.
         
         let bytesPerPixel = needsHdr ? 8 : 4
         let data = Data(count: bytesPerPixel * Int(streamConfig.wrappedValue.width) * Int(streamConfig.wrappedValue.height))

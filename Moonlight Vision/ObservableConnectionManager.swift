@@ -14,7 +14,7 @@
 import Foundation
 import Combine
 @MainActor
-@objc class ObservableConnectionManager: NSObject, ObservableObject, ConnectionCallbacks {
+@objc class ObservableConnectionManager: NSObject, ObservableObject, @preconcurrency ConnectionCallbacks {
     
     // Published properties for SwiftUI to observe
     @Published var connectionStatus: Int32 = 0

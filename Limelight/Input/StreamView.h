@@ -12,7 +12,6 @@
 
 
 enum X1MouseButton : uint8_t;
-@protocol X1KitMouseDelegate;
 
 @protocol UserInteractionDelegate <NSObject>
 
@@ -22,9 +21,9 @@ enum X1MouseButton : uint8_t;
 @end
 
 #if TARGET_OS_TV
-@interface StreamView : UIView <X1KitMouseDelegate, UITextFieldDelegate>
+@interface StreamView : UIView <UITextFieldDelegate>
 #else
-@interface StreamView : UIView <CALayerDelegate, X1KitMouseDelegate, UITextFieldDelegate, UIPointerInteractionDelegate>
+@interface StreamView : UIView <CALayerDelegate, UITextFieldDelegate, UIPointerInteractionDelegate>
 -(void)layoutSublayersOfLayer:(CALayer *)layer;
 
 #endif

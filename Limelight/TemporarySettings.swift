@@ -130,7 +130,7 @@ public class TemporarySettings: NSObject {
 
     // This init is used by the App when loading from the Database
         @objc public init(fromSettings settings: MoonlightSettings) {
-            #if TARGET_OS_TV
+            #if os(tvOS)
             self.bitrate = 0
             self.framerate = 0
             self.height = 0

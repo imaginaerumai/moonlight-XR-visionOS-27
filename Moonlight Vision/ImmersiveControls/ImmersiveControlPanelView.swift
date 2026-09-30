@@ -156,7 +156,6 @@ struct ImmersiveControlPanelView: View {
         saveTimer?.invalidate()
         saveTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false) { _ in
             controlState.saveSettings?()
-            SharePlayManager.shared.broadcastCurrentTransform()
         }
     }
     
@@ -298,15 +297,6 @@ struct ImmersiveControlPanelView: View {
                         isActive: viewModel.streamSettings.statsOverlay
                     ) {
                         withAnimation { viewModel.streamSettings.statsOverlay.toggle() }
-                    }
-                    
-                    // SharePlay
-                    ModernActionTile(
-                        icon: "shareplay",
-                        title: "SharePlay",
-                        isActive: false
-                    ) {
-                        SharePlayManager.shared.startSharePlay()
                     }
                     
                     // Reactive Lighting

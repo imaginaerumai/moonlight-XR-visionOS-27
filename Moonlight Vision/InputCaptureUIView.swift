@@ -103,6 +103,7 @@ struct InputCaptureView: UIViewControllerRepresentable {
         view.streamConfig = streamConfig
         view.headStorage = headStorage
         view.allowTouchPassthrough = !showKeyboard && !isControllerMode
+        view.maintainFirstResponder = !UserDefaults.standard.bool(forKey: "macVirtualDisplayExperimental") || fpsMouseCapture
         
         controllerSupport.fpsMouseCaptureEnabled = fpsMouseCapture
         controllerSupport.relativeMouseMode = isControllerMode
@@ -124,11 +125,14 @@ struct InputCaptureView: UIViewControllerRepresentable {
         
         uiViewController.fpsMouseCaptureEnabled = fpsMouseCapture
         
-        // ONLY aggressively reclaim first responder if Mac Virtual Display mode is OFF
-        if !UserDefaults.standard.bool(forKey: "macVirtualDisplayExperimental") {
+        // Fix B: keep view as first responder even in Mac Virtual Display mode when
+        // FPS-locked mouse capture is on, otherwise GCMouse deltas may never reach us.
+        let macVDMode = UserDefaults.standard.bool(forKey: "macVirtualDisplayExperimental")
+        view.maintainFirstResponder = !macVDMode || fpsMouseCapture
+        if !macVDMode || fpsMouseCapture {
             if view.window != nil && !view.isFirstResponder && UIApplication.shared.applicationState == .active {
                 _ = view.becomeFirstResponder()
-                
+
                 // Double-check and force if needed
                 if !view.isFirstResponder {
                     DispatchQueue.main.async {
@@ -158,12 +162,14 @@ struct SwiftUIAbsoluteMouseTracker: View {
     
     @State private var longPressTimer: Timer?
     @State private var isDragging: Bool = false
-    
+
+    @State private var fpsToggleObserver: NSObjectProtocol? = nil
+
     private let BUTTON_ACTION_PRESS: Int8 = 0x07
     private let BUTTON_ACTION_RELEASE: Int8 = 0x08
     private let BUTTON_LEFT: Int32 = 0x01
     private let BUTTON_RIGHT: Int32 = 0x03
-    
+
     var body: some View {
         GeometryReader { geo in
             InputCaptureView(
@@ -176,10 +182,16 @@ struct SwiftUIAbsoluteMouseTracker: View {
                 fpsMouseCapture: fpsMouseCapture
             )
             .onContinuousHover(coordinateSpace: .local) { phase in
-                guard isControllerMode && !fpsMouseCapture else { return }
                 switch phase {
                 case .active(let location):
                     GlobalInputState.shared.lastPhysicalMouseActivityTime = CACurrentMediaTime()
+
+                    // Relative motion is delivered by GCMouse even in a shared-space
+                    // window. Sending hover-derived deltas here would duplicate motion.
+                    guard !fpsMouseCapture else { return }
+
+                    // Absolute (non-FPS) path — controller mode only.
+                    guard isControllerMode else { return }
                     updateCursorFromSystemPointer(location: location, bounds: geo.size)
                 case .ended:
                     break
@@ -188,8 +200,24 @@ struct SwiftUIAbsoluteMouseTracker: View {
             .simultaneousGesture(
                 DragGesture(minimumDistance: 0, coordinateSpace: .local)
                     .onChanged { value in
-                        guard isControllerMode && !fpsMouseCapture else { return }
-                        
+                        // Fix D — FPS-locked left click. visionOS consumes the primary
+                        // (left) mouse button as a "select" gesture, so GCMouse's
+                        // leftButton.pressedChangedHandler never fires. But the same
+                        // input surfaces as a DragGesture. In FPS-locked mode we forward
+                        // just the press (motion is already handled by .onContinuousHover
+                        // above) and skip the long-press-to-right-click heuristic since
+                        // a physical right-click already works via GCMouse.
+                        if fpsMouseCapture {
+                            if !isDragging {
+                                isDragging = true
+                                NSLog("[InputCapture] FPS-locked LeftClick DOWN (via DragGesture)")
+                                LiSendMouseButtonEvent(BUTTON_ACTION_PRESS, BUTTON_LEFT)
+                            }
+                            return
+                        }
+
+                        guard isControllerMode else { return }
+
                         let now = CACurrentMediaTime()
                         // If physical mouse hasn't moved or clicked in the last 0.5 seconds, it's a hand pinch!
                         if now - GlobalInputState.shared.lastPhysicalMouseActivityTime > 0.5 {
@@ -201,13 +229,13 @@ struct SwiftUIAbsoluteMouseTracker: View {
                         } else {
                             GlobalInputState.shared.activeTouchIsHand = false
                         }
-                        
+
                         updateCursorFromSystemPointer(location: value.location, bounds: geo.size)
-                        
+
                         if !isDragging {
                             isDragging = true
                             LiSendMouseButtonEvent(BUTTON_ACTION_PRESS, BUTTON_LEFT)
-                            
+
                             longPressTimer?.invalidate()
                             longPressTimer = Timer.scheduledTimer(withTimeInterval: 0.650, repeats: false) { _ in
                                 // Right click emulation
@@ -217,12 +245,22 @@ struct SwiftUIAbsoluteMouseTracker: View {
                         }
                     }
                     .onEnded { value in
+                        // Fix D — FPS-locked left release.
+                        if fpsMouseCapture {
+                            if isDragging {
+                                isDragging = false
+                                NSLog("[InputCapture] FPS-locked LeftClick UP (via DragGesture)")
+                                LiSendMouseButtonEvent(BUTTON_ACTION_RELEASE, BUTTON_LEFT)
+                            }
+                            return
+                        }
+
                         if GlobalInputState.shared.activeTouchIsHand { return }
                         if isDragging {
                             isDragging = false
                             longPressTimer?.invalidate()
                             longPressTimer = nil
-                            
+
                             LiSendMouseButtonEvent(BUTTON_ACTION_RELEASE, BUTTON_LEFT)
                             LiSendMouseButtonEvent(BUTTON_ACTION_RELEASE, BUTTON_RIGHT)
                         }
@@ -233,13 +271,36 @@ struct SwiftUIAbsoluteMouseTracker: View {
                 let KEY_ACTION_DOWN: Int8 = 0x03
                 let KEY_ACTION_UP: Int8 = 0x04
                 let action = down ? KEY_ACTION_DOWN : KEY_ACTION_UP
-                
+
                 var modifiers: Int8 = 0
                 if press.modifiers.contains(.shift) { modifiers |= 0x01 }
                 if press.modifiers.contains(.control) { modifiers |= 0x02 }
                 if press.modifiers.contains(.option) { modifiers |= 0x04 }
                 if press.modifiers.contains(.command) { modifiers |= 0x08 }
-                
+
+                // Shortcut: Cmd+Shift+M toggles FPS-locked mouse capture.
+                // We swallow the .down (return .handled) so it never reaches the host,
+                // and let the .up fall through as .ignored so the OS/other views can
+                // resolve their key-up bookkeeping. Only the primary key character 'm'
+                // is matched, since visionOS may deliver 'µ' when option is held etc.
+                if press.key.character == "m",
+                   press.modifiers.contains(.command),
+                   press.modifiers.contains(.shift) {
+                    if down && press.phase == .down {
+                        let newValue = !MainViewModel.shared.streamSettings.fpsMouseCapture
+                        MainViewModel.shared.streamSettings.fpsMouseCapture = newValue
+                        MainViewModel.shared.streamSettings.save()
+                        NSLog("[InputCapture] Shortcut Cmd+Shift+M -> fpsMouseCapture=\(newValue)")
+                        // Best-effort visual notification for other views listening.
+                        NotificationCenter.default.post(
+                            name: Notification.Name("FPSMouseCaptureToggled"),
+                            object: nil,
+                            userInfo: ["enabled": newValue]
+                        )
+                    }
+                    return .handled
+                }
+
                 var keyCode: Int16 = 0
                 switch press.key {
                 case .upArrow: keyCode = 0x26
@@ -286,6 +347,32 @@ struct SwiftUIAbsoluteMouseTracker: View {
                 longPressTimer?.invalidate()
                 longPressTimer = nil
                 isDragging = false
+                if let token = fpsToggleObserver {
+                    NotificationCenter.default.removeObserver(token)
+                    fpsToggleObserver = nil
+                }
+            }
+            .onAppear {
+                if let token = fpsToggleObserver {
+                    NotificationCenter.default.removeObserver(token)
+                }
+                fpsToggleObserver = NotificationCenter.default.addObserver(
+                    forName: Notification.Name("FPSMouseCaptureToggleRequested"),
+                    object: nil,
+                    queue: .main
+                ) { _ in
+                    Task { @MainActor in
+                        let newValue = !MainViewModel.shared.streamSettings.fpsMouseCapture
+                        MainViewModel.shared.streamSettings.fpsMouseCapture = newValue
+                        MainViewModel.shared.streamSettings.save()
+                        NSLog("[InputCapture] Shortcut Shift+Option+M -> fpsMouseCapture=\(newValue)")
+                        NotificationCenter.default.post(
+                            name: Notification.Name("FPSMouseCaptureToggled"),
+                            object: nil,
+                            userInfo: ["enabled": newValue]
+                        )
+                    }
+                }
             }
         }
     }
@@ -470,6 +557,7 @@ class InputCaptureUIView: UIView, UIKeyInput {
     var streamConfig: StreamConfiguration?
     var headStorage: HeadPositionStorage?
     var allowTouchPassthrough: Bool = true
+    var maintainFirstResponder: Bool = true
     var firstResponderCheckTimer: Timer?
     var showVirtualKeyboard: Bool = false {
         didSet {
@@ -497,13 +585,15 @@ class InputCaptureUIView: UIView, UIKeyInput {
     }
     
     private func startFirstResponderMonitoring() {
-        // ONLY start the timer if Mac Virtual Display mode is OFF
-        guard !UserDefaults.standard.bool(forKey: "macVirtualDisplayExperimental") else { return }
-        
+        // Fix B: also start the monitor in Mac Virtual Display mode — otherwise
+        // FPS-locked GCMouse deltas cannot reach us because the view is never focused.
+        // (Original gate was: skip entirely when macVirtualDisplayExperimental is set.)
+
         // Periodically check and reclaim first responder if lost (needed for controller input)
         firstResponderCheckTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
             guard let self = self else { return }
             guard UIApplication.shared.applicationState == .active else { return }
+            guard self.maintainFirstResponder else { return }
             if self.window != nil && !self.isFirstResponder {
                 _ = self.becomeFirstResponder()
             }
@@ -513,7 +603,7 @@ class InputCaptureUIView: UIView, UIKeyInput {
     override func didMoveToWindow() {
         super.didMoveToWindow()
         // Always gracefully request focus when attached to the window
-        if self.window != nil && !isFirstResponder {
+        if maintainFirstResponder && self.window != nil && !isFirstResponder {
             _ = becomeFirstResponder()
         }
     }

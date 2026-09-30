@@ -25,7 +25,7 @@
 @property (nonatomic, readonly) double audioUnitLatency;
 @property (nonatomic, readonly) BOOL headTracking;
 @property (nonatomic, readonly) BOOL personalizedHRTF;
-@property (nonatomic, assign) struct TPCircularBuffer * _Nullable ringBufferPtr;
+@property (nonatomic, assign) TPCircularBuffer * _Nullable ringBufferPtr;
 
 - (BOOL)setupWithOutputType:(AUSpatialMixerOutputType)outputType inSampleRate:(double)inSampleRate outSampleRate:(double)outSampleRate inChannelCount:(int)inChannelCount;
 - (OSStatus)setStreamFormatAndACL:(float)inSampleRate layoutTag:(AudioChannelLayoutTag)inLayoutTag scope:(AudioUnitScope)inScope element:(AudioUnitElement)inElement;

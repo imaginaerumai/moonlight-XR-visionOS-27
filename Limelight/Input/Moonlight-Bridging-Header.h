@@ -34,7 +34,3 @@
 #import "MoonlightApp+CoreDataClass.h"
 #import "MoonlightHost+CoreDataClass.h"
 #import "MoonlightSettings+CoreDataClass.h"
-
-#if TARGET_OS_VISION
-#import "SDLMainWrapper.h"
-#endif

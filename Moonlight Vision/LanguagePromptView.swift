@@ -30,7 +30,7 @@ struct LanguagePromptView: View {
                         Text(lang.displayName).tag(lang)
                     }
                 }
-                .pickerStyle(.inline)
+                .pickerStyle(.menu)
 
                 Button {
                     viewModel.updateLanguage(selection)
@@ -46,4 +46,3 @@ struct LanguagePromptView: View {
         }
     }
 }
-
