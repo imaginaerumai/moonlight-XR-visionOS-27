@@ -1659,15 +1659,16 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES = YES;
 				CLANG_ENABLE_CXX_MODULES = NO;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = "Moonlight XrOS.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 22;
+				CURRENT_PROJECT_VERSION = 23;
 				DEFINES_MODULE = YES;
-				DEVELOPMENT_TEAM = 3D5MKYPYXF;
+				DEVELOPMENT_TEAM = FHMT6BATVG;
 				ENABLE_MODULE_VERIFIER = YES;
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
 				GCC_PREFIX_HEADER = "Limelight/Limelight-Prefix.pch";
@@ -1679,7 +1680,7 @@
 					"$(PROJECT_DIR)/libs/**",
 				);
 				INFOPLIST_FILE = "Moonlight copy-Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = "Moonlight Imaginaerum";
+				INFOPLIST_KEY_CFBundleDisplayName = "Moonlight Spatial";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.games";
 				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1700,7 +1701,7 @@
 					"$(PROJECT_DIR)/libs/SDL2/lib/visionOS-Sim",
 					"$(PROJECT_DIR)/libs/opus/lib/visionOS-Sim",
 				);
-				MARKETING_VERSION = 11.0.22;
+				MARKETING_VERSION = 11.0.23;
 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu99 gnu++11";
 				PRODUCT_BUNDLE_IDENTIFIER = "com.moonlight-imaginaerum-beta.Moonlight-Vision-luma";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1727,15 +1728,16 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES = YES;
 				CLANG_ENABLE_CXX_MODULES = NO;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = "Moonlight XrOS.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 22;
+				CURRENT_PROJECT_VERSION = 23;
 				DEFINES_MODULE = YES;
-				DEVELOPMENT_TEAM = 3D5MKYPYXF;
+				DEVELOPMENT_TEAM = FHMT6BATVG;
 				ENABLE_MODULE_VERIFIER = YES;
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
 				GCC_PREFIX_HEADER = "Limelight/Limelight-Prefix.pch";
@@ -1747,7 +1749,7 @@
 					"$(PROJECT_DIR)/libs/**",
 				);
 				INFOPLIST_FILE = "Moonlight copy-Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = "Moonlight Imaginaerum";
+				INFOPLIST_KEY_CFBundleDisplayName = "Moonlight Spatial";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.games";
 				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1768,7 +1770,7 @@
 					"$(PROJECT_DIR)/libs/SDL2/lib/visionOS-Sim",
 					"$(PROJECT_DIR)/libs/opus/lib/visionOS-Sim",
 				);
-				MARKETING_VERSION = 11.0.22;
+				MARKETING_VERSION = 11.0.23;
 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu99 gnu++11";
 				PRODUCT_BUNDLE_IDENTIFIER = "com.moonlight-imaginaerum-beta.Moonlight-Vision-luma";
 				PRODUCT_NAME = "$(TARGET_NAME)";
