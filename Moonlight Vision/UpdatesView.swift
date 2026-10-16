@@ -40,6 +40,30 @@ struct UpdatesView: View {
 
                 Section(header: Text(viewModel.localized("latest_updates"))) { // Section for latest updates
                     VStack(alignment: .leading) {
+                        Text("Version 11.0.23 (October 16, 2026)")
+                            .font(.headline)
+                        Text("- FPS-Locked Mouse Fixed: Mouse look now works properly inside games. Relative mouse movement comes only from the native GameController mouse input, so the camera no longer jumps, drifts, or moves twice as far. The old hover-based movement that was sending duplicate motion has been removed.")
+                            .font(.body)
+                        Text("- FPS Mouse Focus: The stream view keeps input capture while FPS mode is on, including in Mac Virtual Display mode, and still requests pointer lock. Mouse clicks continue to work as before.")
+                            .font(.body)
+                        Text("- Stream Freeze Fix: The video decoder now recovers cleanly after network packet loss instead of getting stuck requesting new keyframes. The old decoder session is closed before a new one is created, and incomplete video headers are rejected instead of breaking the stream.")
+                            .font(.body)
+                        Text("- Smoother Playback: Audio is no longer reconfigured on every keyframe, removing a source of hitches during streaming. Video frames keep updating while you interact with controls.")
+                            .font(.body)
+                        Text("- Audio Startup: Fixed a possible app hang when starting audio from the main thread.")
+                            .font(.body)
+                        Text("- Lighter Build: Removed SharePlay and the unused SDL library from the Vision Pro app. The app no longer needs special entitlements to install.")
+                            .font(.body)
+                        Text("- Faster App List: Duplicate app list refreshes for the same computer are skipped.")
+                            .font(.body)
+                        Text("- Language Picker: Fixed the first-launch language selector on visionOS 27.")
+                            .font(.body)
+                        Text("- Updated the bundled Opus and FFmpeg libraries for visionOS and the Vision Pro simulator.")
+                            .font(.body)
+                    }
+                    .padding(.vertical)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    VStack(alignment: .leading) {
                         Text("Version 11.0.22 (April 26, 2026)")
                             .font(.headline)
                         Text("- Navigation Stability: Fixed a critical bug causing the app to freeze when clicking 'Return to Home' while a second paired computer is offline.")
