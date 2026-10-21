@@ -76,9 +76,11 @@ struct MoonlightVisionApp: SwiftUI.App {
                              appDelegate.mainViewModel.savedStreamConfigForResume = nil
                          }
                      }
-                     .onDisappear { 
-                         streamConfig.wrappedValue = nil
-                     }
+                     // No .onDisappear { streamConfig = nil } here: the window is already closing,
+                     // and nil swaps RealityKitStreamView to its zombie branch (which itself calls
+                     // openWindow/dismissWindow) mid-dismissal -> SwiftUI trap in
+                     // ViewGraph.instantiateOutputs. Stale restored scenes are caught by the
+                     // sessionUUID ghost check in RealityKitStreamView.body.
                 }
                 .windowStyle(.volumetric)
                 .defaultSize(width: 1.2, height: 1.2, depth: 1.2, in: .meters)
@@ -109,9 +111,11 @@ struct MoonlightVisionApp: SwiftUI.App {
                              appDelegate.mainViewModel.savedStreamConfigForResume = nil
                          }
                      }
-                     .onDisappear { 
-                         streamConfig.wrappedValue = nil
-                     }
+                     // No .onDisappear { streamConfig = nil } here: the window is already closing,
+                     // and nil swaps RealityKitStreamView to its zombie branch (which itself calls
+                     // openWindow/dismissWindow) mid-dismissal -> SwiftUI trap in
+                     // ViewGraph.instantiateOutputs. Stale restored scenes are caught by the
+                     // sessionUUID ghost check in RealityKitStreamView.body.
                 }
                 .immersionStyle(selection: $immersionManager.currentStyle, in: .mixed, .progressive, .full)
 
