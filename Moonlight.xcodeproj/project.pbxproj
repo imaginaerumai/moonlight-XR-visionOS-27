@@ -1666,7 +1666,7 @@
 				CODE_SIGN_ENTITLEMENTS = "Moonlight XrOS.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 23;
+				CURRENT_PROJECT_VERSION = 24;
 				DEFINES_MODULE = YES;
 				DEVELOPMENT_TEAM = FHMT6BATVG;
 				ENABLE_MODULE_VERIFIER = YES;
@@ -1701,7 +1701,7 @@
 					"$(PROJECT_DIR)/libs/SDL2/lib/visionOS-Sim",
 					"$(PROJECT_DIR)/libs/opus/lib/visionOS-Sim",
 				);
-				MARKETING_VERSION = 11.0.23;
+				MARKETING_VERSION = 11.0.24;
 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu99 gnu++11";
 				PRODUCT_BUNDLE_IDENTIFIER = "com.moonlight-imaginaerum-beta.Moonlight-Vision-luma";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1735,7 +1735,7 @@
 				CODE_SIGN_ENTITLEMENTS = "Moonlight XrOS.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 23;
+				CURRENT_PROJECT_VERSION = 24;
 				DEFINES_MODULE = YES;
 				DEVELOPMENT_TEAM = FHMT6BATVG;
 				ENABLE_MODULE_VERIFIER = YES;
@@ -1770,7 +1770,7 @@
 					"$(PROJECT_DIR)/libs/SDL2/lib/visionOS-Sim",
 					"$(PROJECT_DIR)/libs/opus/lib/visionOS-Sim",
 				);
-				MARKETING_VERSION = 11.0.23;
+				MARKETING_VERSION = 11.0.24;
 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu99 gnu++11";
 				PRODUCT_BUNDLE_IDENTIFIER = "com.moonlight-imaginaerum-beta.Moonlight-Vision-luma";
 				PRODUCT_NAME = "$(TARGET_NAME)";

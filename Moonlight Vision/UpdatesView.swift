@@ -40,6 +40,14 @@ struct UpdatesView: View {
 
                 Section(header: Text(viewModel.localized("latest_updates"))) { // Section for latest updates
                     VStack(alignment: .leading) {
+                        Text("Version 11.0.24 (October 21, 2026)")
+                            .font(.headline)
+                        Text("- Home Button Crash Fixed: Pressing Home in a flat or Volume stream window no longer crashes the app. The stream window no longer resets itself while visionOS is closing it.")
+                            .font(.body)
+                    }
+                    .padding(.vertical)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    VStack(alignment: .leading) {
                         Text("Version 11.0.23 (October 16, 2026)")
                             .font(.headline)
                         Text("- FPS-Locked Mouse Fixed: Mouse look now works properly inside games. Relative mouse movement comes only from the native GameController mouse input, so the camera no longer jumps, drifts, or moves twice as far. The old hover-based movement that was sending duplicate motion has been removed.")
