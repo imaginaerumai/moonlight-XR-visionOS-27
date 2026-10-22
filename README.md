@@ -1,8 +1,44 @@
-# Moonlight XrOS
+# Moonlight XR for visionOS 27
 
+A fork of [RikuKunMS2/moonlight-ios-vision](https://github.com/RikuKunMS2/moonlight-ios-vision) (Moonlight XrOS) for Apple Vision Pro on visionOS 27, streaming from a [Sunshine](https://github.com/LizardByte/Sunshine) or [Apollo](https://github.com/ClassicOldSong/Apollo) host.
 
-Additional Note: if you're using AVP with Logitech/any multichannel keyboards or mouse, consider checking my easyswitch-reconnect-macos repo, it solves the issue with often 'stale' connection after going from device X to AVP and back to X, it sometimes required to reset BT to have the devices back connected to the original device
-https://github.com/imaginaerumai/easyswitch-reconnect-macos
+## Why this fork exists
+
+I use Moonlight XrOS on Apple Vision Pro with a Bluetooth mouse to play PC games streamed from Sunshine. With the upstream TestFlight build (v11.0.22), three things blocked that:
+
+1. **FPS Locked Mouse did not work.** Only Absolute Mouse mode responded, and absolute mode does not work in games that need relative mouse input (first-person camera control).
+2. **The app could not be built with a free Apple ID.** The project declared the Group Activities, Low-Latency Streaming and Spatial Audio Profile capabilities. Xcode refuses to create a provisioning profile for those with a free Personal Team, so I could not build and test my own fixes.
+3. **Pressing Home in a stream window crashed the app.** This happened in both the flat (UIKit) and the Volume (RealityKit) window.
+
+## What this fork changes
+
+| Area | Change |
+|---|---|
+| FPS Locked Mouse | Uses native `GCMouse` deltas for relative mouse movement and drops the synthetic hover-based movement. |
+| Home button crash | Stream windows no longer reset their scene value while visionOS is closing them. Before this fix, SwiftUI stopped the app with `EXC_BREAKPOINT` in `ViewGraph.instantiateOutputs`. Verified on Apple Vision Pro (visionOS 27.0.1). |
+| Stream stalls | Hardened VideoToolbox IDR recovery: session invalidation, parameter-set validation, and no audio reconfiguration on every IDR frame. |
+| Audio | Avoids a main-thread deadlock in `OutputAU` audio session setup. |
+| Free Apple ID builds | Removed SharePlay / Group Activities and the restricted entitlements. The visionOS target no longer needs SDL. Rebuilt the opus and FFmpeg libraries for visionOS. |
+
+**Trade-off:** SharePlay and Spatial Personas co-watching are removed in this fork.
+
+## Build it yourself (free Apple ID)
+
+1. `git clone --recursive https://github.com/imaginaerumai/moonlight-XR-visionOS-27.git`
+2. Open `Moonlight.xcodeproj` and select the **Moonlight XrOS** scheme.
+3. In **Signing & Capabilities**, select your own Team and change the Bundle Identifier to a unique value.
+4. Pair your Vision Pro in **Window > Devices and Simulators**. On the Vision Pro, turn on **Settings > Privacy & Security > Developer Mode** (this option appears only after you start pairing).
+5. Select your Vision Pro as the run destination and press **Run**.
+
+## License
+
+This fork is licensed under the [GNU GPL v3](LICENSE.txt), the same license as Moonlight and Moonlight XrOS. All upstream credits below remain in effect.
+
+---
+
+**Additional note:** if you use AVP with Logitech or other multi-channel keyboards or mice, see my [easyswitch-reconnect-macos](https://github.com/imaginaerumai/easyswitch-reconnect-macos) repo. It fixes the "stale" Bluetooth connection that can happen when you switch a device from another computer to the AVP and back. Without it, you sometimes have to reset Bluetooth to reconnect the device to the original computer.
+
+## Upstream README (Moonlight XrOS)
 
 
 [Moonlight for VisionOs/iOS/tvOS](https://moonlight-stream.org) is an open source client for [Sunshine](https://github.com/LizardByte/Sunshine) and NVIDIA GameStream. Moonlight for iOS/tvOS allows you to stream your full collection of games and apps from your powerful desktop computer to your iOS device or Apple TV.
@@ -43,7 +79,7 @@ The Vision OS Version is not available in the App Store. To download the latest 
     * *New:* Perfect 1:1 HDR EDR mapping and Calibration Mode toggle added in v11.0.21.
 * **AV1 Support**: Confirmed working (including AV1 HDR) on M5 hardware.
 * **Audio Control**: Toggle between Head-Tracked and Non-Head-Tracked audio.
-* **SharePlay & Spatial Personas**: Enjoy immersive co-watching experiences with friends.
+* **SharePlay & Spatial Personas**: Enjoy immersive co-watching experiences with friends. *(Removed in this fork.)*
 * **Reactive Lighting (Ambilight)**: Dynamic ambient lighting based on stream content in Reality Kit mode.
 * **Localization**: Support for Chinese added (Thanks **linggan-ua**).
 

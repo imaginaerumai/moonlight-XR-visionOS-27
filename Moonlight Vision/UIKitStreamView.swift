@@ -414,7 +414,10 @@ struct UIKitStreamView: View {
         performUIKitTeardown()
     }
 
-    private func performUIKitTeardown() {
+    /// - Parameter windowIsClosing: true when called from `.onDisappear`, i.e. visionOS is
+    ///   already tearing this scene down. In that case we must not mutate the scene's
+    ///   `WindowGroup(for:)` value binding or call `dismissWindow` on it again.
+    private func performUIKitTeardown(windowIsClosing: Bool = false) {
         guard !hasPerformedTeardown else { return }
         hasPerformedTeardown = true
         needsResume = false
@@ -441,6 +444,17 @@ struct UIKitStreamView: View {
             saveWindowSizeForRestore()
         }
 
+        if windowIsClosing {
+            // Scene is already being dismissed by the system or by dismissWindow.
+            // Nil-ing the scene value here swaps the body to the "stream stopped" branch
+            // (dropping the ornament) mid-dismissal and was followed by a SwiftUI trap in
+            // ViewGraph.instantiateOutputs (crash reports 2026-10-19 and 2026-10-21).
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                NotificationCenter.default.post(name: Notification.Name("StreamDidTeardownNotification"), object: nil)
+            }
+            return
+        }
+
         streamConfig = nil
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
@@ -456,7 +470,7 @@ struct UIKitStreamView: View {
         // If we are disappearing but activelyStreaming is true, it means the user closed the window manually.
         // We should clean up the stream logic.
         if viewModel.activelyStreaming {
-            performUIKitTeardown()
+            performUIKitTeardown(windowIsClosing: true)
         }
     }
     
