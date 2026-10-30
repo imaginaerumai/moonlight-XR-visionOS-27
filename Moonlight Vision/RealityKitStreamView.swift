@@ -1498,8 +1498,8 @@ struct _RealityKitStreamView: View {
                 fpsMouseCapture: viewModel.streamSettings.fpsMouseCapture
             )
             .frame(
-                width: (showVirtualKeyboard || inputMode == .controller) ? 1920 : 1,
-                height: (showVirtualKeyboard || inputMode == .controller) ? (1920 / CGFloat(screenAspect)) : 1
+                width: (showVirtualKeyboard || inputMode == .controller || viewModel.streamSettings.fpsMouseCapture) ? 1920 : 1,
+                height: (showVirtualKeyboard || inputMode == .controller || viewModel.streamSettings.fpsMouseCapture) ? (1920 / CGFloat(screenAspect)) : 1
             )
             .ignoresSafeArea()
             .contentShape(Rectangle())
@@ -1508,11 +1508,9 @@ struct _RealityKitStreamView: View {
             .onAppear {
                 isInputFocused = true
             }
-            // Fix B: keep hit-testing enabled when FPS-locked capture is on so the view
-            // stays focused; without focus, GCMouse.mouseMovedHandler cannot deliver
-            // deltas on visionOS. The internal SwiftUIAbsoluteMouseTracker gestures are
-            // gated on !fpsMouseCapture and will no-op cleanly.
-            .allowsHitTesting(inputMode == .controller)
+            // Keep hit-testing on for controller mode and for FPS-locked capture so
+            // IndirectPointer buttonMask events reach InputCaptureUIView (left/right click).
+            .allowsHitTesting(inputMode == .controller || viewModel.streamSettings.fpsMouseCapture)
         }
     }
 
