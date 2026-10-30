@@ -44,9 +44,6 @@ class GlobalInputState {
     var lastPhysicalMouseActivityTime: TimeInterval = 0
 }
 
-/// Maps UIKit indirect-pointer button-mask deltas to Limelight mouse buttons.
-/// visionOS surfaces Magic Mouse / trackpad clicks as `UITouch.TouchType.indirectPointer`
-/// with `UIEvent.buttonMask`. SwiftUI `DragGesture` cannot see which button was pressed.
 enum IndirectPointerMouseButtons {
     static let actionPress: Int8 = 0x07
     static let actionRelease: Int8 = 0x08
@@ -56,8 +53,6 @@ enum IndirectPointerMouseButtons {
     static let x1: Int32 = 0x04
     static let x2: Int32 = 0x05
 
-    /// Button-number mapping matches `StreamView.handleMouseButtonEvent`
-    /// (iOS secondary = Limelight right, iOS button 3 = Limelight middle).
     static let maskToLimelightButton: [(UIEvent.ButtonMask, Int32)] = [
         (.primary, left),
         (.secondary, right),
@@ -134,6 +129,10 @@ struct InputCaptureView: UIViewControllerRepresentable {
     var streamConfig: StreamConfiguration
     let headStorage: HeadPositionStorage
     var fpsMouseCapture: Bool
+
+    private var allowTouchPassthrough: Bool {
+        !showKeyboard && !isControllerMode && !fpsMouseCapture
+    }
     
     func makeUIViewController(context: Context) -> InputCaptureViewController {
         let vc = InputCaptureViewController()
@@ -143,8 +142,7 @@ struct InputCaptureView: UIViewControllerRepresentable {
         controllerSupport.attachGCEventInteraction(to: view)
         view.streamConfig = streamConfig
         view.headStorage = headStorage
-        // FPS-locked mode must receive IndirectPointer hits for buttonMask (left/right).
-        view.allowTouchPassthrough = !showKeyboard && !isControllerMode && !fpsMouseCapture
+        view.allowTouchPassthrough = allowTouchPassthrough
         view.maintainFirstResponder = !UserDefaults.standard.bool(forKey: "macVirtualDisplayExperimental") || fpsMouseCapture
         
         controllerSupport.fpsMouseCaptureEnabled = fpsMouseCapture
@@ -159,7 +157,7 @@ struct InputCaptureView: UIViewControllerRepresentable {
         view.curvature = curvature
         view.streamConfig = streamConfig
         view.headStorage = headStorage
-        view.allowTouchPassthrough = !showKeyboard && !isControllerMode && !fpsMouseCapture
+        view.allowTouchPassthrough = allowTouchPassthrough
         view.showVirtualKeyboard = showKeyboard
         
         controllerSupport.fpsMouseCaptureEnabled = fpsMouseCapture
@@ -242,13 +240,7 @@ struct SwiftUIAbsoluteMouseTracker: View {
             .simultaneousGesture(
                 DragGesture(minimumDistance: 0, coordinateSpace: .local)
                     .onChanged { value in
-                        // FPS-locked clicks are owned by InputCaptureUIView via
-                        // UIEvent.buttonMask. Mapping every DragGesture to left click
-                        // made secondary (right) clicks behave as left clicks on visionOS.
-                        if fpsMouseCapture {
-                            return
-                        }
-
+                        guard !fpsMouseCapture else { return }
                         guard isControllerMode else { return }
 
                         let now = CACurrentMediaTime()
@@ -278,10 +270,7 @@ struct SwiftUIAbsoluteMouseTracker: View {
                         }
                     }
                     .onEnded { value in
-                        if fpsMouseCapture {
-                            return
-                        }
-
+                        guard !fpsMouseCapture else { return }
                         if GlobalInputState.shared.activeTouchIsHand { return }
                         if isDragging {
                             isDragging = false
@@ -594,7 +583,6 @@ class InputCaptureUIView: UIView, UIKeyInput {
         }
     }
 
-    /// Tracks pressed mouse buttons for IndirectPointer press/release diffs (FPS path).
     private var lastMouseButtonMask: UIEvent.ButtonMask = []
     
     private let maxCurveAngle: Float = 1.3
@@ -691,9 +679,7 @@ class InputCaptureUIView: UIView, UIKeyInput {
         )
     }
 
-    /// FPS-locked mouse buttons on visionOS. GCMouse left is consumed by the system as
-    /// a select gesture; secondary clicks must be read from `event.buttonMask` here
-    /// (same approach as upstream moonlight-ios #613 / StreamView).
+    // moonlight-ios #613 / StreamView: FPS IndirectPointer clicks via buttonMask.
     @discardableResult
     private func handleIndirectPointerMouseButtons(
         action: Int8,

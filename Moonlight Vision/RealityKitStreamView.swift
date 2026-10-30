@@ -1488,6 +1488,8 @@ struct _RealityKitStreamView: View {
     @ViewBuilder
     private var inputCaptureAttachment: some View {
         if let support = controllerSupport {
+            let inputCaptureHitTestingEnabled =
+                inputMode == .controller || viewModel.streamSettings.fpsMouseCapture
             SwiftUIAbsoluteMouseTracker(
                 controllerSupport: support,
                 showKeyboard: $showVirtualKeyboard,
@@ -1498,8 +1500,8 @@ struct _RealityKitStreamView: View {
                 fpsMouseCapture: viewModel.streamSettings.fpsMouseCapture
             )
             .frame(
-                width: (showVirtualKeyboard || inputMode == .controller || viewModel.streamSettings.fpsMouseCapture) ? 1920 : 1,
-                height: (showVirtualKeyboard || inputMode == .controller || viewModel.streamSettings.fpsMouseCapture) ? (1920 / CGFloat(screenAspect)) : 1
+                width: (showVirtualKeyboard || inputCaptureHitTestingEnabled) ? 1920 : 1,
+                height: (showVirtualKeyboard || inputCaptureHitTestingEnabled) ? (1920 / CGFloat(screenAspect)) : 1
             )
             .ignoresSafeArea()
             .contentShape(Rectangle())
@@ -1508,9 +1510,7 @@ struct _RealityKitStreamView: View {
             .onAppear {
                 isInputFocused = true
             }
-            // Keep hit-testing on for controller mode and for FPS-locked capture so
-            // IndirectPointer buttonMask events reach InputCaptureUIView (left/right click).
-            .allowsHitTesting(inputMode == .controller || viewModel.streamSettings.fpsMouseCapture)
+            .allowsHitTesting(inputCaptureHitTestingEnabled)
         }
     }
 

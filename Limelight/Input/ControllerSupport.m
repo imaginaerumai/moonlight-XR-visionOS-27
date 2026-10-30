@@ -1204,15 +1204,10 @@ extern void UpdatePhysicalMouseActivityTime(void);
         });
 
         if (!strongSelf.fpsMouseCaptureEnabled) return;
-#if TARGET_OS_VISION
-        // visionOS FPS clicks are delivered via IndirectPointer buttonMask in
-        // InputCaptureUIView. GCMouse left is usually swallowed as a select gesture;
-        // skip here so a rare delivery cannot duplicate the UIKit press.
-        return;
-#endif
-        
+#if !TARGET_OS_VISION
         NSLog(@"[ControllerSupport] Left Click: %@", pressed ? @"DOWN" : @"UP");
         LiSendMouseButtonEvent(pressed ? BUTTON_ACTION_PRESS : BUTTON_ACTION_RELEASE, BUTTON_LEFT);
+#endif
     };
     
     mouse.mouseInput.middleButton.pressedChangedHandler = ^(GCControllerButtonInput * _Nonnull button, float value, BOOL pressed) {
@@ -1242,8 +1237,6 @@ extern void UpdatePhysicalMouseActivityTime(void);
         });
 
 #if TARGET_OS_VISION
-        // Absolute (non-FPS) mode still uses GCMouse for secondary click. FPS mode
-        // reads secondary from UIEvent.buttonMask so right-click is not remapped to left.
         if (strongSelf.fpsMouseCaptureEnabled) return;
 #endif
         
