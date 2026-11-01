@@ -36,6 +36,7 @@
 		6581B5F12D5434100022400F /* VideoTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6581B5F02D5434100022400F /* VideoTypes.swift */; };
 		659789EC2D55A93A00B88B25 /* SBSMaterial.usda in Resources */ = {isa = PBXBuildFile; fileRef = 659789EB2D55A93A00B88B25 /* SBSMaterial.usda */; };
 		693B3A9B218638CD00982F7B /* Settings.bundle in Resources */ = {isa = PBXBuildFile; fileRef = 693B3A9A218638CD00982F7B /* Settings.bundle */; };
+		822DD5A93D434F589FBCB09F /* VisionScenePresence.swift in Sources */ = {isa = PBXBuildFile; fileRef = F844FC8B5A674049A91CC64F /* VisionScenePresence.swift */; };
 		98181BE92791277400E43572 /* libSDL2.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 98181BE82791275D00E43572 /* libSDL2.a */; };
 		98181BEB2791278F00E43572 /* libSDL2.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 98181BEA2791278300E43572 /* libSDL2.a */; };
 		98181BED2791281100E43572 /* CoreMotion.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 98181BEC2791281100E43572 /* CoreMotion.framework */; };
@@ -415,6 +416,7 @@
 		F7A11A1F2B5DF46B001E8686 /* RealityKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = RealityKit.framework; path = Platforms/XROS.platform/Developer/SDKs/XROS1.0.sdk/System/Library/Frameworks/RealityKit.framework; sourceTree = DEVELOPER_DIR; };
 		F7A4A4D02B5F216C001591F3 /* MainViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewModel.swift; sourceTree = "<group>"; };
 		F7A4A4D52B61E2F2001591F3 /* TemporaryHost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemporaryHost.swift; sourceTree = "<group>"; };
+		F844FC8B5A674049A91CC64F /* VisionScenePresence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisionScenePresence.swift; sourceTree = "<group>"; };
 		FB1A674B2131E65900507771 /* KeyboardSupport.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = KeyboardSupport.h; sourceTree = "<group>"; };
 		FB1A674C2131E65900507771 /* KeyboardSupport.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = KeyboardSupport.m; sourceTree = "<group>"; };
 		FB1A67532132419700507771 /* Moonlight TV.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Moonlight TV.app"; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -769,6 +771,7 @@
 				B10D61AE2D54D0F600550218 /* AppIntents */,
 				F71801412B65483D00A9336B /* AppsView.swift */,
 				E77582EA2D5550D200948545 /* AudioHelpers.swift */,
+				F844FC8B5A674049A91CC64F /* VisionScenePresence.swift */,
 				3E8100A52ED566510011CB9F /* AV1Helper.h */,
 				3E8100A62ED5666B0011CB9F /* AV1Helper.m */,
 				5924693D218D4AB18BB554DD /* AV1Parser.swift */,
@@ -1423,6 +1426,7 @@
 				04F5ECAF2EE37A7F009FF87D /* StandardControlPanelView.swift in Sources */,
 				04F5ECB12EE37A80009FF87D /* VolumeControlPanelView.swift in Sources */,
 				E77582EB2D5550D500948545 /* AudioHelpers.swift in Sources */,
+				822DD5A93D434F589FBCB09F /* VisionScenePresence.swift in Sources */,
 				F7A119162B5DDF73001E8686 /* AppAssetRetriever.m in Sources */,
 				F7A119172B5DDF73001E8686 /* WakeOnLanManager.m in Sources */,
 				B1EDB1352D4D95A700EB1839 /* StreamControls.swift in Sources */,

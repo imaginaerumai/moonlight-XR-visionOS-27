@@ -99,7 +99,7 @@ struct RealityKitStreamView: View {
     /// Open the main menu window and close this dead streaming window/space.
     private func redirectZombieToMainMenu() {
         viewModel.savedStreamConfigForResume = nil
-        openWindow(id: "mainView")
+        VisionScenePresence.openMainViewIfNeeded(openWindow)
         // Small delay so the main window has time to register before we close self.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             if isImmersive {
@@ -1000,7 +1000,7 @@ struct _RealityKitStreamView: View {
             // Scene appeared while not streaming — zombie window (e.g. restored by
             // visionOS after a reboot with a stale StreamConfiguration value).
             // Redirect to main menu and close self.
-            openWindow(id: "mainView")
+            VisionScenePresence.openMainViewIfNeeded(openWindow)
             Task { @MainActor in
                 viewModel.userDidRequestDisconnect()
                 await dismissImmersiveSpace()

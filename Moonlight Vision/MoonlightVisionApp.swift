@@ -34,6 +34,9 @@ struct MoonlightVisionApp: SwiftUI.App {
     @ObservedObject private var streamControlState = StreamControlState.shared
     
     var body: some Scene {
+        // Cold launch / Home icon: always present the host list. Secondary stream
+        // scenes must not restore or relaunch alone (WWDC25 persistent UI guidance) —
+        // that caused double mainView opens and flash-then-dismiss zombie windows.
         WindowGroup("Main view", id: "mainView") {
             MainContentView()
                 .environmentObject(appDelegate.mainViewModel)
@@ -41,6 +44,7 @@ struct MoonlightVisionApp: SwiftUI.App {
         }
         .windowStyle(.plain)
         .windowResizability(.contentSize)
+        .defaultLaunchBehavior(.presented)
         .defaultWindowPlacement { _, context in
             // .utilityPanel forces the window to spawn centered directly in front of the user,
             // bypassing the default behavior that pushes it off to the right.
@@ -52,6 +56,8 @@ struct MoonlightVisionApp: SwiftUI.App {
                 .environmentObject(appDelegate.mainViewModel)
         }
         .handlesExternalEvents(matching: ["dummy"])
+        .restorationBehavior(.disabled)
+        .defaultLaunchBehavior(.suppressed)
         
         // 1. Bounded Volumetric Window (Existing)
                 WindowGroup(id: "realitykitStreamingWindow", for: StreamConfiguration.self) { streamConfig in
@@ -84,6 +90,8 @@ struct MoonlightVisionApp: SwiftUI.App {
                 }
                 .windowStyle(.volumetric)
                 .defaultSize(width: 1.2, height: 1.2, depth: 1.2, in: .meters)
+                .restorationBehavior(.disabled)
+                .defaultLaunchBehavior(.suppressed)
 
                 // 2. Unbounded Immersive Space (New)
                 ImmersiveSpace(id: "realitykitImmersiveSpace", for: StreamConfiguration.self) { streamConfig in
@@ -118,6 +126,7 @@ struct MoonlightVisionApp: SwiftUI.App {
                      // sessionUUID ghost check in RealityKitStreamView.body.
                 }
                 .immersionStyle(selection: $immersionManager.currentStyle, in: .mixed, .progressive, .full)
+                .restorationBehavior(.disabled)
 
                 // 3. UIKit Window
                 WindowGroup(id: "classicStreamingWindow", for: StreamConfiguration.self) { streamConfig in
@@ -140,6 +149,8 @@ struct MoonlightVisionApp: SwiftUI.App {
                 }
                 .windowStyle(.plain)
                 .windowResizability(.contentSize)
+                .restorationBehavior(.disabled)
+                .defaultLaunchBehavior(.suppressed)
     }
 }
 
