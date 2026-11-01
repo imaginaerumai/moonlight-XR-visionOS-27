@@ -99,7 +99,7 @@ struct RealityKitStreamView: View {
     /// Open the main menu window and close this dead streaming window/space.
     private func redirectZombieToMainMenu() {
         viewModel.savedStreamConfigForResume = nil
-        openWindow(id: "mainView")
+        VisionScenePresence.openMainViewIfNeeded(openWindow)
         // Small delay so the main window has time to register before we close self.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             if isImmersive {
@@ -1000,7 +1000,7 @@ struct _RealityKitStreamView: View {
             // Scene appeared while not streaming — zombie window (e.g. restored by
             // visionOS after a reboot with a stale StreamConfiguration value).
             // Redirect to main menu and close self.
-            openWindow(id: "mainView")
+            VisionScenePresence.openMainViewIfNeeded(openWindow)
             Task { @MainActor in
                 viewModel.userDidRequestDisconnect()
                 await dismissImmersiveSpace()
@@ -1488,6 +1488,8 @@ struct _RealityKitStreamView: View {
     @ViewBuilder
     private var inputCaptureAttachment: some View {
         if let support = controllerSupport {
+            let inputCaptureHitTestingEnabled =
+                inputMode == .controller || viewModel.streamSettings.fpsMouseCapture
             SwiftUIAbsoluteMouseTracker(
                 controllerSupport: support,
                 showKeyboard: $showVirtualKeyboard,
@@ -1498,8 +1500,8 @@ struct _RealityKitStreamView: View {
                 fpsMouseCapture: viewModel.streamSettings.fpsMouseCapture
             )
             .frame(
-                width: (showVirtualKeyboard || inputMode == .controller) ? 1920 : 1,
-                height: (showVirtualKeyboard || inputMode == .controller) ? (1920 / CGFloat(screenAspect)) : 1
+                width: (showVirtualKeyboard || inputCaptureHitTestingEnabled) ? 1920 : 1,
+                height: (showVirtualKeyboard || inputCaptureHitTestingEnabled) ? (1920 / CGFloat(screenAspect)) : 1
             )
             .ignoresSafeArea()
             .contentShape(Rectangle())
@@ -1508,11 +1510,7 @@ struct _RealityKitStreamView: View {
             .onAppear {
                 isInputFocused = true
             }
-            // Fix B: keep hit-testing enabled when FPS-locked capture is on so the view
-            // stays focused; without focus, GCMouse.mouseMovedHandler cannot deliver
-            // deltas on visionOS. The internal SwiftUIAbsoluteMouseTracker gestures are
-            // gated on !fpsMouseCapture and will no-op cleanly.
-            .allowsHitTesting(inputMode == .controller)
+            .allowsHitTesting(inputCaptureHitTestingEnabled)
         }
     }
 

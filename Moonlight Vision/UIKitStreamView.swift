@@ -166,7 +166,7 @@ struct UIKitStreamView: View {
                             print("[UIKitStreamView] Zombie state detected onAppear. Closing.")
                             // We don't show the "Stream Stopped" error here because the user likely just
                             // restarted the app or came back from a long sleep.
-                            openWindow(id: "mainView")
+                            VisionScenePresence.openMainViewIfNeeded(openWindow)
                             
                             // Dismiss after small delay to ensure main view registers
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {

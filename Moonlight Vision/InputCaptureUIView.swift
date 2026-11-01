@@ -44,6 +44,42 @@ class GlobalInputState {
     var lastPhysicalMouseActivityTime: TimeInterval = 0
 }
 
+enum IndirectPointerMouseButtons {
+    static let actionPress: Int8 = 0x07
+    static let actionRelease: Int8 = 0x08
+    static let left: Int32 = 0x01
+    static let middle: Int32 = 0x02
+    static let right: Int32 = 0x03
+    static let x1: Int32 = 0x04
+    static let x2: Int32 = 0x05
+
+    static let maskToLimelightButton: [(UIEvent.ButtonMask, Int32)] = [
+        (.primary, left),
+        (.secondary, right),
+        (UIEvent.ButtonMask(rawValue: 1 << 2), middle),
+        (UIEvent.ButtonMask(rawValue: 1 << 3), x1),
+        (UIEvent.ButtonMask(rawValue: 1 << 4), x2),
+    ]
+
+    static func normalizedMask(
+        action: Int8,
+        eventMask: UIEvent.ButtonMask,
+        previousMask: UIEvent.ButtonMask
+    ) -> UIEvent.ButtonMask {
+        // iOS 14+ includes the released button in buttonMask on release events.
+        if action == actionRelease {
+            return previousMask.subtracting(eventMask)
+        }
+        return eventMask
+    }
+
+    static func limelightButtons(in changed: UIEvent.ButtonMask) -> [Int32] {
+        maskToLimelightButton.compactMap { mask, button in
+            changed.intersection(mask).isEmpty ? nil : button
+        }
+    }
+}
+
 @_cdecl("UpdatePhysicalMouseActivityTime")
 func UpdatePhysicalMouseActivityTime() {
     GlobalInputState.shared.lastPhysicalMouseActivityTime = CACurrentMediaTime()
@@ -93,6 +129,10 @@ struct InputCaptureView: UIViewControllerRepresentable {
     var streamConfig: StreamConfiguration
     let headStorage: HeadPositionStorage
     var fpsMouseCapture: Bool
+
+    private var allowTouchPassthrough: Bool {
+        !showKeyboard && !isControllerMode && !fpsMouseCapture
+    }
     
     func makeUIViewController(context: Context) -> InputCaptureViewController {
         let vc = InputCaptureViewController()
@@ -102,7 +142,7 @@ struct InputCaptureView: UIViewControllerRepresentable {
         controllerSupport.attachGCEventInteraction(to: view)
         view.streamConfig = streamConfig
         view.headStorage = headStorage
-        view.allowTouchPassthrough = !showKeyboard && !isControllerMode
+        view.allowTouchPassthrough = allowTouchPassthrough
         view.maintainFirstResponder = !UserDefaults.standard.bool(forKey: "macVirtualDisplayExperimental") || fpsMouseCapture
         
         controllerSupport.fpsMouseCaptureEnabled = fpsMouseCapture
@@ -117,8 +157,15 @@ struct InputCaptureView: UIViewControllerRepresentable {
         view.curvature = curvature
         view.streamConfig = streamConfig
         view.headStorage = headStorage
-        view.allowTouchPassthrough = !showKeyboard && !isControllerMode
+        view.allowTouchPassthrough = allowTouchPassthrough
         view.showVirtualKeyboard = showKeyboard
+
+        let wasFpsCapture = controllerSupport.fpsMouseCaptureEnabled
+        if wasFpsCapture && !fpsMouseCapture {
+            view.releaseHeldIndirectPointerButtons()
+        } else if !wasFpsCapture && fpsMouseCapture {
+            view.clearIndirectPointerButtonMask()
+        }
         
         controllerSupport.fpsMouseCaptureEnabled = fpsMouseCapture
         controllerSupport.relativeMouseMode = isControllerMode
@@ -200,22 +247,6 @@ struct SwiftUIAbsoluteMouseTracker: View {
             .simultaneousGesture(
                 DragGesture(minimumDistance: 0, coordinateSpace: .local)
                     .onChanged { value in
-                        // Fix D — FPS-locked left click. visionOS consumes the primary
-                        // (left) mouse button as a "select" gesture, so GCMouse's
-                        // leftButton.pressedChangedHandler never fires. But the same
-                        // input surfaces as a DragGesture. In FPS-locked mode we forward
-                        // just the press (motion is already handled by .onContinuousHover
-                        // above) and skip the long-press-to-right-click heuristic since
-                        // a physical right-click already works via GCMouse.
-                        if fpsMouseCapture {
-                            if !isDragging {
-                                isDragging = true
-                                NSLog("[InputCapture] FPS-locked LeftClick DOWN (via DragGesture)")
-                                LiSendMouseButtonEvent(BUTTON_ACTION_PRESS, BUTTON_LEFT)
-                            }
-                            return
-                        }
-
                         guard isControllerMode else { return }
 
                         let now = CACurrentMediaTime()
@@ -245,16 +276,6 @@ struct SwiftUIAbsoluteMouseTracker: View {
                         }
                     }
                     .onEnded { value in
-                        // Fix D — FPS-locked left release.
-                        if fpsMouseCapture {
-                            if isDragging {
-                                isDragging = false
-                                NSLog("[InputCapture] FPS-locked LeftClick UP (via DragGesture)")
-                                LiSendMouseButtonEvent(BUTTON_ACTION_RELEASE, BUTTON_LEFT)
-                            }
-                            return
-                        }
-
                         if GlobalInputState.shared.activeTouchIsHand { return }
                         if isDragging {
                             isDragging = false
@@ -264,7 +285,10 @@ struct SwiftUIAbsoluteMouseTracker: View {
                             LiSendMouseButtonEvent(BUTTON_ACTION_RELEASE, BUTTON_LEFT)
                             LiSendMouseButtonEvent(BUTTON_ACTION_RELEASE, BUTTON_RIGHT)
                         }
-                    }
+                    },
+                // FPS mode: do not install this recognizer. A live DragGesture can
+                // cancelTouchesInView and collapse IndirectPointer press/hold into a click.
+                including: fpsMouseCapture ? .subviews : .all
             )
             .onKeyPress(phases: [.down, .up, .repeat]) { press in
                 let down = (press.phase == .down || press.phase == .repeat)
@@ -566,6 +590,8 @@ class InputCaptureUIView: UIView, UIKeyInput {
             }
         }
     }
+
+    private var lastMouseButtonMask: UIEvent.ButtonMask = []
     
     private let maxCurveAngle: Float = 1.3
     
@@ -636,14 +662,74 @@ class InputCaptureUIView: UIView, UIKeyInput {
         if !isFirstResponder {
             _ = becomeFirstResponder()
         }
+        _ = handleIndirectPointerMouseButtons(
+            action: IndirectPointerMouseButtons.actionPress,
+            touches: touches,
+            event: event
+        )
     }
     
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
         super.touchesEnded(touches, with: event)
+        _ = handleIndirectPointerMouseButtons(
+            action: IndirectPointerMouseButtons.actionRelease,
+            touches: touches,
+            event: event
+        )
     }
     
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
         super.touchesCancelled(touches, with: event)
+        _ = handleIndirectPointerMouseButtons(
+            action: IndirectPointerMouseButtons.actionRelease,
+            touches: touches,
+            event: event
+        )
+    }
+
+    func clearIndirectPointerButtonMask() {
+        lastMouseButtonMask = []
+    }
+
+    func releaseHeldIndirectPointerButtons() {
+        let held = IndirectPointerMouseButtons.limelightButtons(in: lastMouseButtonMask)
+        for button in held {
+            NSLog("[InputCapture] FPS IndirectPointer button %d UP (fps disabled)", button)
+            LiSendMouseButtonEvent(IndirectPointerMouseButtons.actionRelease, button)
+        }
+        lastMouseButtonMask = []
+    }
+
+    // moonlight-ios #613 / StreamView: FPS IndirectPointer clicks via buttonMask.
+    @discardableResult
+    private func handleIndirectPointerMouseButtons(
+        action: Int8,
+        touches: Set<UITouch>,
+        event: UIEvent?
+    ) -> Bool {
+        guard controllerSupport?.fpsMouseCaptureEnabled == true else { return false }
+        guard let event else { return false }
+        guard let touch = touches.first, touch.type == .indirectPointer else { return false }
+
+        UpdatePhysicalMouseActivityTime()
+
+        let normalized = IndirectPointerMouseButtons.normalizedMask(
+            action: action,
+            eventMask: event.buttonMask,
+            previousMask: lastMouseButtonMask
+        )
+        let changed = lastMouseButtonMask.symmetricDifference(normalized)
+        let buttons = IndirectPointerMouseButtons.limelightButtons(in: changed)
+        for button in buttons {
+            NSLog(
+                "[InputCapture] FPS IndirectPointer button %d %@",
+                button,
+                action == IndirectPointerMouseButtons.actionPress ? "DOWN" : "UP"
+            )
+            LiSendMouseButtonEvent(action, button)
+        }
+        lastMouseButtonMask = normalized
+        return !buttons.isEmpty
     }
     
     func insertText(_ text: String) {
