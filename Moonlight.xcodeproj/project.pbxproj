@@ -2351,7 +2351,9 @@
 				);
 				INFOPLIST_KEY_CFBundleDisplayName = Moonlight;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.games";
+				INFOPLIST_KEY_NSBonjourServices = "_nvstream._tcp";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "Moonlight";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Moonlight uses the local network to connect to your gaming PC for streaming.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -2431,7 +2433,9 @@
 				);
 				INFOPLIST_KEY_CFBundleDisplayName = Moonlight;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.games";
+				INFOPLIST_KEY_NSBonjourServices = "_nvstream._tcp";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "Moonlight";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Moonlight uses the local network to connect to your gaming PC for streaming.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",

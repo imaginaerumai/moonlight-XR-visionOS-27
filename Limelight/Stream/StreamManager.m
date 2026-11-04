@@ -26,8 +26,23 @@
     id<ConnectionCallbacks> _callbacks;
     Connection* _connection;
     NSOperationQueue* _connectionQueue;
+    BOOL _stopRequested;
     
     id<AnyVideoDecoderRenderer> __strong (^_rendererProvider)(void);
+}
+
+- (void)failLaunch:(NSString *)message {
+    if ([self isCancelled]) {
+        return;
+    }
+    dispatch_async(dispatch_get_main_queue(), ^{
+        @synchronized (self) {
+            if ([self isCancelled] || self->_stopRequested) {
+                return;
+            }
+            [self->_callbacks launchFailed:message];
+        }
+    });
 }
 
 - (id) initWithConfig:(StreamConfiguration*)config rendererProvider:(id<AnyVideoDecoderRenderer> __strong (^)(void))rendererProvider connectionCallbacks:(id<ConnectionCallbacks>)callbacks {
@@ -41,6 +56,10 @@
 }
 
 - (void)main {
+    if ([self isCancelled]) {
+        return;
+    }
+
     [CryptoManager generateKeyPairUsingSSL];
     
     HttpManager* hMan = [[HttpManager alloc] initWithAddress:_config.host httpsPort:_config.httpsPort
@@ -54,18 +73,17 @@
     NSString* gfeVersion = [serverInfoResp getStringTag:@"GfeVersion"];
     NSString* serverState = [serverInfoResp getStringTag:@"state"];
     if (![serverInfoResp isStatusOk]) {
-        NSString *msg = serverInfoResp.statusMessage;
-        dispatch_async(dispatch_get_main_queue(), ^{ [self->_callbacks launchFailed:msg]; });
+        [self failLaunch:serverInfoResp.statusMessage];
         return;
     }
     else if (pairStatus == NULL || appversion == NULL || serverState == NULL) {
-        dispatch_async(dispatch_get_main_queue(), ^{ [self->_callbacks launchFailed:@"Failed to connect to PC"]; });
+        [self failLaunch:@"Failed to connect to PC"];
         return;
     }
     
     if (![pairStatus isEqualToString:@"1"]) {
         // Not paired
-        dispatch_async(dispatch_get_main_queue(), ^{ [self->_callbacks launchFailed:@"Device not paired to PC"]; });
+        [self failLaunch:@"Device not paired to PC"];
         return;
     }
     // Only perform this check on GFE (as indicated by MJOLNIR in state value)
@@ -74,7 +92,7 @@
         // We can't directly identify Pascal, but we can look for HEVC Main10 which was added in the same generation.
         NSString* codecSupport = [serverInfoResp getStringTag:@"ServerCodecModeSupport"];
         if (codecSupport == nil || !([codecSupport intValue] & 0x200)) {
-            dispatch_async(dispatch_get_main_queue(), ^{ [self->_callbacks launchFailed:@"Your host PC's GPU doesn't support streaming video resolutions over 4K."]; });
+            [self failLaunch:@"Your host PC's GPU doesn't support streaming video resolutions over 4K."];
             return;
         }
     }
@@ -83,6 +101,10 @@
     _config.appVersion = appversion;
     _config.gfeVersion = gfeVersion;
     
+    if ([self isCancelled]) {
+        return;
+    }
+
     // resumeApp and launchApp handle calling launchFailed
     NSString* sessionUrl;
     if ([serverState hasSuffix:@"_SERVER_BUSY"]) {
@@ -96,36 +118,58 @@
             return;
         }
     }
+
+    if ([self isCancelled]) {
+        return;
+    }
     
     // Populate RTSP session URL from launch/resume response
     _config.rtspSessionUrl = sessionUrl;
     
-    // Initializing the renderer must be done on the main thread
+    // Initializing the renderer must be done on the main thread.
+    // Stop can arrive while this block is queued; take the same lock stop uses
+    // so a cancelled launch cannot create the Connection afterward.
     dispatch_async(dispatch_get_main_queue(), ^{
-        id<AnyVideoDecoderRenderer> __strong renderer = self->_rendererProvider();
-//        VideoDecoderRenderer* renderer = [[VideoDecoderRenderer alloc] initWithView:self->_renderView callbacks:self->_callbacks streamAspectRatio:(float)self->_config.width / (float)self->_config.height useFramePacing:self->_config.useFramePacing];
-        self->_connection = [[Connection alloc] initWithConfig:self->_config renderer:renderer connectionCallbacks:self->_callbacks];
-        if (!self->_connectionQueue) {
-            self->_connectionQueue = [[NSOperationQueue alloc] init];
+        @synchronized (self) {
+            if (self->_stopRequested || [self isCancelled]) {
+                return;
+            }
+            id<AnyVideoDecoderRenderer> __strong renderer = self->_rendererProvider();
+            self->_connection = [[Connection alloc] initWithConfig:self->_config renderer:renderer connectionCallbacks:self->_callbacks];
+            if (!self->_connectionQueue) {
+                self->_connectionQueue = [[NSOperationQueue alloc] init];
+            }
+            [self->_connectionQueue addOperation:self->_connection];
         }
-        [self->_connectionQueue addOperation:self->_connection];
     });
 }
 
 - (void) stopStream
 {
-    [_connection terminate];
+    Connection *connection = nil;
+    @synchronized (self) {
+        _stopRequested = YES;
+        [self cancel];
+        connection = _connection;
+    }
+    [connection terminate];
 }
 
 - (void) stopStreamWithCompletion:(void (^)(void))completion
 {
-    if (!_connection) {
+    Connection *connection = nil;
+    @synchronized (self) {
+        _stopRequested = YES;
+        [self cancel];
+        connection = _connection;
+    }
+    if (!connection) {
         if (completion) {
             dispatch_async(dispatch_get_main_queue(), ^{ completion(); });
         }
         return;
     }
-    [_connection terminateWithCompletion:completion];
+    [connection terminateWithCompletion:completion];
 }
 
 - (BOOL) launchApp:(HttpManager*)hMan receiveSessionUrl:(NSString**)sessionUrl {
@@ -133,13 +177,12 @@
     [hMan executeRequestSynchronously:[HttpRequest requestForResponse:launchResp withUrlRequest:[hMan newLaunchOrResumeRequest:@"launch" config:_config]]];
     NSString *gameSession = [launchResp getStringTag:@"gamesession"];
     if (![launchResp isStatusOk]) {
-        NSString *msg = launchResp.statusMessage;
-        dispatch_async(dispatch_get_main_queue(), ^{ [self->_callbacks launchFailed:msg]; });
         Log(LOG_E, @"Failed Launch Response: %@", launchResp.statusMessage);
+        [self failLaunch:launchResp.statusMessage];
         return FALSE;
     } else if (gameSession == NULL || [gameSession isEqualToString:@"0"]) {
-        dispatch_async(dispatch_get_main_queue(), ^{ [self->_callbacks launchFailed:@"Failed to launch app"]; });
         Log(LOG_E, @"Failed to parse game session");
+        [self failLaunch:@"Failed to launch app"];
         return FALSE;
     }
     
@@ -152,14 +195,12 @@
     [hMan executeRequestSynchronously:[HttpRequest requestForResponse:resumeResp withUrlRequest:[hMan newLaunchOrResumeRequest:@"resume" config:_config]]];
     NSString* resume = [resumeResp getStringTag:@"resume"];
     if (![resumeResp isStatusOk]) {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [_callbacks launchFailed:resumeResp.statusMessage];
-            Log(LOG_E, @"Failed Resume Response: %@", resumeResp.statusMessage);
-        });
+        Log(LOG_E, @"Failed Resume Response: %@", resumeResp.statusMessage);
+        [self failLaunch:resumeResp.statusMessage];
         return FALSE;
     } else if (resume == NULL || [resume isEqualToString:@"0"]) {
-        dispatch_async(dispatch_get_main_queue(), ^{ [self->_callbacks launchFailed:@"Failed to resume app"]; });
         Log(LOG_E, @"Failed to parse resume response");
+        [self failLaunch:@"Failed to resume app"];
         return FALSE;
     }
     

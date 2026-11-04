@@ -113,7 +113,61 @@ struct MacVideoRepresentable: NSViewRepresentable {
     }
 }
 
-final class MacLibraryModel: NSObject, ObservableObject, DiscoveryCallback, PairCallback, ConnectionCallbacks {
+final class MacStreamSink: NSObject, ConnectionCallbacks {
+    weak var library: MacLibraryModel?
+    let token: UUID
+
+    init(library: MacLibraryModel, token: UUID) {
+        self.library = library
+        self.token = token
+    }
+
+    func connectionStarted() {
+        library?.connectionStarted(token: token)
+    }
+
+    func connectionTerminated(_ errorCode: Int32) {
+        library?.connectionTerminated(errorCode, token: token)
+    }
+
+    func stageStarting(_ stageName: UnsafePointer<CChar>!) {
+        library?.stageStarting(stageName, token: token)
+    }
+
+    func stageComplete(_ stageName: UnsafePointer<CChar>!) {
+        library?.stageComplete(stageName, token: token)
+    }
+
+    func stageFailed(_ stageName: UnsafePointer<CChar>!, withError errorCode: Int32, portTestFlags: Int32) {
+        library?.stageFailed(stageName, withError: errorCode, portTestFlags: portTestFlags, token: token)
+    }
+
+    func launchFailed(_ message: String!) {
+        library?.launchFailed(message, token: token)
+    }
+
+    func rumble(_ controllerNumber: UInt16, lowFreqMotor: UInt16, highFreqMotor: UInt16) {}
+
+    func connectionStatusUpdate(_ status: Int32) {
+        library?.connectionStatusUpdate(status, token: token)
+    }
+
+    func setHdrMode(_ enabled: Bool) {
+        library?.setHdrMode(enabled, token: token)
+    }
+
+    func rumbleTriggers(_ controllerNumber: UInt16, leftTrigger: UInt16, rightTrigger: UInt16) {}
+
+    func setMotionEventState(_ controllerNumber: UInt16, motionType: UInt8, reportRateHz: UInt16) {}
+
+    func setControllerLed(_ controllerNumber: UInt16, r: UInt8, g: UInt8, b: UInt8) {}
+
+    func videoContentShown() {
+        library?.videoContentShown(token: token)
+    }
+}
+
+final class MacLibraryModel: NSObject, ObservableObject, DiscoveryCallback, PairCallback {
     @Published var hosts: [TemporaryHost] = []
     @Published var apps: [TemporaryApp] = []
     @Published var selectedHostID: String?
@@ -124,9 +178,15 @@ final class MacLibraryModel: NSObject, ObservableObject, DiscoveryCallback, Pair
 
     private let database = DataManager()
     private var discovery: DiscoveryManager?
-    private let workQueue = OperationQueue()
+    private let workQueue: OperationQueue = {
+        let queue = OperationQueue()
+        queue.maxConcurrentOperationCount = 1
+        return queue
+    }()
     private(set) var videoView: MacVideoView?
     private var streamManager: StreamManager?
+    private var streamSink: MacStreamSink?
+    private var activeToken: UUID?
     private var pairingHost: TemporaryHost?
 
     var selectedHost: TemporaryHost? {
@@ -256,9 +316,14 @@ final class MacLibraryModel: NSObject, ObservableObject, DiscoveryCallback, Pair
             status = "Could not build a stream configuration."
             return
         }
+        tearDownStream()
+        let token = UUID()
+        let sink = MacStreamSink(library: self, token: token)
         let video = MacVideoView(frame: NSRect(x: 0, y: 0, width: 1280, height: 720))
-        video.callbacks = self
-        let manager = StreamManager(config: config, rendererProvider: { video }, connectionCallbacks: self)
+        video.callbacks = sink
+        let manager = StreamManager(config: config, rendererProvider: { video }, connectionCallbacks: sink)
+        activeToken = token
+        streamSink = sink
         videoView = video
         streamManager = manager
         streaming = true
@@ -267,67 +332,72 @@ final class MacLibraryModel: NSObject, ObservableObject, DiscoveryCallback, Pair
     }
 
     func stopStream() {
-        streamManager?.stopStream()
-        videoView?.stop()
-        streamManager = nil
-        videoView = nil
-        streaming = false
+        tearDownStream()
         status = "Stopped."
     }
 
-    func connectionStarted() {
-        DispatchQueue.main.async { self.status = "Connected." }
+    private func tearDownStream() {
+        activeToken = nil
+        streamManager?.stopStream()
+        videoView?.stop()
+        streamManager = nil
+        streamSink = nil
+        videoView = nil
+        streaming = false
     }
 
-    func connectionTerminated(_ errorCode: Int32) {
+    private func onSession(_ token: UUID, _ body: @escaping () -> Void) {
         DispatchQueue.main.async {
-            self.streaming = false
+            guard token == self.activeToken else { return }
+            body()
+        }
+    }
+
+    func connectionStarted(token: UUID) {
+        onSession(token) { self.status = "Connected." }
+    }
+
+    func connectionTerminated(_ errorCode: Int32, token: UUID) {
+        onSession(token) {
+            self.tearDownStream()
             self.status = "Connection ended (\(errorCode))."
         }
     }
 
-    func stageStarting(_ stageName: UnsafePointer<CChar>!) {
+    func stageStarting(_ stageName: UnsafePointer<CChar>!, token: UUID) {
         let stage = stageName.map { String(cString: $0) } ?? ""
-        DispatchQueue.main.async { self.status = "Starting \(stage)…" }
+        onSession(token) { self.status = "Starting \(stage)…" }
     }
 
-    func stageComplete(_ stageName: UnsafePointer<CChar>!) {
+    func stageComplete(_ stageName: UnsafePointer<CChar>!, token: UUID) {
         let stage = stageName.map { String(cString: $0) } ?? ""
-        DispatchQueue.main.async { self.status = "\(stage) complete." }
+        onSession(token) { self.status = "\(stage) complete." }
     }
 
-    func stageFailed(_ stageName: UnsafePointer<CChar>!, withError errorCode: Int32, portTestFlags: Int32) {
+    func stageFailed(_ stageName: UnsafePointer<CChar>!, withError errorCode: Int32, portTestFlags: Int32, token: UUID) {
         let stage = stageName.map { String(cString: $0) } ?? "stage"
-        DispatchQueue.main.async {
-            self.streaming = false
+        onSession(token) {
+            self.tearDownStream()
             self.status = "\(stage) failed (\(errorCode), flags \(portTestFlags))."
         }
     }
 
-    func launchFailed(_ message: String!) {
-        DispatchQueue.main.async {
-            self.streaming = false
+    func launchFailed(_ message: String!, token: UUID) {
+        onSession(token) {
+            self.tearDownStream()
             self.status = message ?? "Launch failed."
         }
     }
 
-    func rumble(_ controllerNumber: UInt16, lowFreqMotor: UInt16, highFreqMotor: UInt16) {}
-
-    func connectionStatusUpdate(_ status: Int32) {
-        DispatchQueue.main.async { self.status = "Status \(status)." }
+    func connectionStatusUpdate(_ status: Int32, token: UUID) {
+        onSession(token) { self.status = "Status \(status)." }
     }
 
-    func setHdrMode(_ enabled: Bool) {
-        videoView?.setHdrMode(enabled)
+    func setHdrMode(_ enabled: Bool, token: UUID) {
+        onSession(token) { self.videoView?.setHdrMode(enabled) }
     }
 
-    func rumbleTriggers(_ controllerNumber: UInt16, leftTrigger: UInt16, rightTrigger: UInt16) {}
-
-    func setMotionEventState(_ controllerNumber: UInt16, motionType: UInt8, reportRateHz: UInt16) {}
-
-    func setControllerLed(_ controllerNumber: UInt16, r: UInt8, g: UInt8, b: UInt8) {}
-
-    func videoContentShown() {
-        DispatchQueue.main.async { self.status = "Streaming." }
+    func videoContentShown(token: UUID) {
+        onSession(token) { self.status = "Streaming." }
     }
 }

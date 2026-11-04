@@ -8,6 +8,7 @@ static void MacAudioOutputCallback(void *userData, AudioQueueRef queue, AudioQue
 
 @interface MacAudioOutput ()
 - (void)noteBufferFinished:(AudioQueueRef)queue buffer:(AudioQueueBufferRef)buffer;
+- (void)callbackThreadMain;
 @end
 
 @implementation MacAudioOutput {
@@ -15,6 +16,10 @@ static void MacAudioOutputCallback(void *userData, AudioQueueRef queue, AudioQue
     void *_raw;
     int _rawBytes;
     atomic_int _queued;
+    atomic_bool _stopped;
+    CFRunLoopRef _callbackRunLoop;
+    dispatch_semaphore_t _runLoopReady;
+    dispatch_semaphore_t _threadDone;
 }
 
 - (instancetype)initWithSampleRate:(int)sampleRate
@@ -31,6 +36,13 @@ static void MacAudioOutputCallback(void *userData, AudioQueueRef queue, AudioQue
         return nil;
     }
     atomic_init(&_queued, 0);
+    atomic_init(&_stopped, false);
+    _runLoopReady = dispatch_semaphore_create(0);
+    _threadDone = dispatch_semaphore_create(0);
+    // Callbacks stay on this thread until stop joins it, so teardown cannot
+    // release the output while noteBufferFinished is still running.
+    [NSThread detachNewThreadSelector:@selector(callbackThreadMain) toTarget:self withObject:nil];
+    dispatch_semaphore_wait(_runLoopReady, DISPATCH_TIME_FOREVER);
 
     AudioStreamBasicDescription format = {0};
     format.mSampleRate = sampleRate;
@@ -42,13 +54,34 @@ static void MacAudioOutputCallback(void *userData, AudioQueueRef queue, AudioQue
     format.mBytesPerFrame = (UInt32)(channels * (int)sizeof(int16_t));
     format.mBytesPerPacket = format.mBytesPerFrame;
 
-    OSStatus status = AudioQueueNewOutput(&format, MacAudioOutputCallback, (__bridge void *)self, NULL, NULL, 0, &_queue);
+    OSStatus status = AudioQueueNewOutput(&format, MacAudioOutputCallback, (__bridge void *)self,
+                                         _callbackRunLoop, kCFRunLoopCommonModes, 0, &_queue);
     if (status != noErr) {
+        _queue = NULL;
         free(_raw);
         _raw = NULL;
+        [self stop];
         return nil;
     }
     return self;
+}
+
+- (void)callbackThreadMain {
+    @autoreleasepool {
+        _callbackRunLoop = CFRunLoopGetCurrent();
+        CFRetain(_callbackRunLoop);
+        // Signal only after CFRunLoopRun is pumping, so CFRunLoopStop cannot be lost.
+        CFRunLoopPerformBlock(_callbackRunLoop, kCFRunLoopDefaultMode, ^{
+            dispatch_semaphore_signal(self->_runLoopReady);
+        });
+        CFRunLoopRun();
+        CFRunLoopRef loop = _callbackRunLoop;
+        _callbackRunLoop = NULL;
+        if (loop != NULL) {
+            CFRelease(loop);
+        }
+    }
+    dispatch_semaphore_signal(_threadDone);
 }
 
 - (void)dealloc {
@@ -71,16 +104,28 @@ static void MacAudioOutputCallback(void *userData, AudioQueueRef queue, AudioQue
 }
 
 - (void)stop {
-    if (_queue != NULL) {
-        AudioQueueStop(_queue, true);
-        AudioQueueDispose(_queue, true);
-        _queue = NULL;
+    if (atomic_exchange(&_stopped, true)) {
+        return;
     }
+    // Stop from this thread so AudioQueue can finish callbacks on the run-loop
+    // thread. Join that thread before returning; the caller then drops its retain.
+    AudioQueueRef queue = _queue;
+    _queue = NULL;
+    if (queue != NULL) {
+        AudioQueueStop(queue, true);
+        AudioQueueDispose(queue, true);
+    }
+    CFRunLoopRef loop = _callbackRunLoop;
+    if (loop != NULL) {
+        CFRunLoopStop(loop);
+        CFRunLoopWakeUp(loop);
+    }
+    dispatch_semaphore_wait(_threadDone, DISPATCH_TIME_FOREVER);
     atomic_store(&_queued, 0);
 }
 
 - (void)enqueuePCM:(const void *)bytes length:(int)length {
-    if (_queue == NULL || bytes == NULL || length <= 0) {
+    if (atomic_load(&_stopped) || _queue == NULL || bytes == NULL || length <= 0) {
         return;
     }
     if (atomic_load(&_queued) >= kMaxQueuedBuffers) {
@@ -101,7 +146,9 @@ static void MacAudioOutputCallback(void *userData, AudioQueueRef queue, AudioQue
 }
 
 - (void)noteBufferFinished:(AudioQueueRef)queue buffer:(AudioQueueBufferRef)buffer {
-    AudioQueueFreeBuffer(queue, buffer);
+    if (!atomic_load(&_stopped)) {
+        AudioQueueFreeBuffer(queue, buffer);
+    }
     atomic_fetch_sub(&_queued, 1);
 }
 

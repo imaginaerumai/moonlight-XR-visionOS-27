@@ -44,6 +44,17 @@ build_one() {
     return 0
   fi
   if grep -E -q "requires a provisioning profile|No signing certificate|No profiles for|Signing for .* requires a development team" "$log"; then
+    # Those signing sentences are also printed for unsigned Debug builds.
+    # A compile or link error in the same log is still a failure.
+    local non_signing
+    non_signing="$(grep -E "error:|fatal error:|linker command failed|Undefined symbols" "$log" \
+        | grep -E -v "requires a provisioning profile|No signing certificate|No profiles for|Signing for .* requires a development team|provisioning profile" || true)"
+    if [ -n "$non_signing" ]; then
+      echo "BUILD FAILED: $scheme ($sdk)"
+      tail -n 80 "$log"
+      rm -f "$log"
+      return 1
+    fi
     echo "SKIP: $scheme was not signed. This runner has no Apple signing secrets."
     echo "----- tail of xcodebuild log -----"
     tail -n 40 "$log"
