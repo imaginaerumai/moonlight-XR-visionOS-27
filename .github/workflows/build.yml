@@ -19,7 +19,7 @@ jobs:
         run: python3 BuildScripts/verify-targets.py
       - name: Build moonlight-common-c
         working-directory: moonlight-common/moonlight-common-c
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=g++ && cmake --build build
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=g++ && cmake --build build
 
   apple:
     name: visionOS and macOS (Xcode)
