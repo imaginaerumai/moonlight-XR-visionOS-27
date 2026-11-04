@@ -33,8 +33,18 @@ build_one() {
     rm -f "$log"
     return 0
   fi
+  if grep -E -q "future Xcode project file format|requires a newer version of Xcode" "$log"; then
+    echo "SKIP: $scheme was not compiled."
+    echo "This project is Xcode 27 format (object version 110) and Moonlight XrOS deploys to visionOS 27."
+    echo "GitHub-hosted runners currently ship Xcode 26.x (visionOS 26.x), which cannot open the project."
+    echo "Build both schemes on a Mac with Xcode 27. See the README."
+    echo "----- tail of xcodebuild log -----"
+    tail -n 20 "$log"
+    rm -f "$log"
+    return 0
+  fi
   if grep -E -q "requires a provisioning profile|No signing certificate|No profiles for|Signing for .* requires a development team" "$log"; then
-    echo "SKIP: $scheme was not signed. This runner has no Apple signing secrets. The compile may also have stopped at signing."
+    echo "SKIP: $scheme was not signed. This runner has no Apple signing secrets."
     echo "----- tail of xcodebuild log -----"
     tail -n 40 "$log"
     rm -f "$log"
