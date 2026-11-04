@@ -64,12 +64,13 @@ NSString *const deviceName = @"roth";
     return NO;
 }
 
-#if !TARGET_OS_TV
+#if TARGET_OS_IPHONE && !TARGET_OS_TV
 + (void) launchUrl:(NSString*)urlString {
     [[UIApplication sharedApplication] openURL:[NSURL URLWithString:urlString] options:@{} completionHandler:nil];
 }
 #endif
 
+#if TARGET_OS_IPHONE
 + (void) addHelpOptionToDialog:(UIAlertController*)dialog {
 #if !TARGET_OS_TV
     // tvOS doesn't have a browser
@@ -78,6 +79,7 @@ NSString *const deviceName = @"roth";
     }]];
 #endif
 }
+#endif
 
 + (BOOL) parseAddressPortString:(NSString*)addressPort address:(NSRange*)address port:(NSRange*)port {
     if (![addressPort containsString:@":"]) {

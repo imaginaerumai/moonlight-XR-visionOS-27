@@ -1,9 +1,11 @@
 **/xcuserdata/
 **/Moonlight.xcscmblueprint
-**/xcschemes/*.xcscheme
 Build
 DerivedData
 *.DS_Store
+
+# Host-built macOS opus. The script recreates this; visionOS/iOS/tvOS libs stay committed.
+libs/opus/lib/macOS/
 
 # Local FFmpeg build workspace
 BuildScripts/ffmpeg-build/

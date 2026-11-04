@@ -15,17 +15,23 @@
 #import "Utils.h"
 
 #import <VideoToolbox/VideoToolbox.h>
+#if !TARGET_OS_OSX
 #import <AVFAudio/AVAudioSession.h>
+#endif
 
 #import "Moonlight-Swift.h"
 
+#if !TARGET_OS_OSX
 #define SDL_MAIN_HANDLED
 #import <SDL.h>
+#endif
+#if TARGET_OS_OSX
+#import "MacAudioOutput.h"
+#endif
 
 #include "Limelight.h"
 #include "opus_multistream.h"
 
-// FIX 1: Import CoreAudioRenderer OUTSIDE the @implementation block
 #ifdef TARGET_OS_VISION
 #import "CoreAudioRenderer.h"
 #endif
@@ -45,7 +51,11 @@
 }
 
 static NSLock* initLock;
-#if !TARGET_OS_VISION
+#if TARGET_OS_OSX
+static MacAudioOutput* macAudio;
+static OpusMSDecoder* macOpusDecoder;
+static OPUS_MULTISTREAM_CONFIGURATION macAudioConfig;
+#elif !TARGET_OS_VISION
 static OpusMSDecoder* opusDecoder;
 #endif
 static id<ConnectionCallbacks> _callbacks;
@@ -55,7 +65,7 @@ static video_stats_t currentVideoStats;
 static video_stats_t lastVideoStats;
 static NSLock* videoStatsLock;
 
-#if !TARGET_OS_VISION
+#if !TARGET_OS_OSX && !TARGET_OS_VISION
 static SDL_AudioDeviceID audioDevice;
 static OPUS_MULTISTREAM_CONFIGURATION audioConfig;
 static void* audioBuffer;
@@ -226,8 +236,34 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit)
 int ArInit(int audioConfiguration, POPUS_MULTISTREAM_CONFIGURATION opusConfig, void* context, int flags)
 {
     int err;
-    
-#ifdef TARGET_OS_VISION
+
+#if TARGET_OS_OSX
+    macAudioConfig = *opusConfig;
+    macAudio = [[MacAudioOutput alloc] initWithSampleRate:opusConfig->sampleRate
+                                                 channels:opusConfig->channelCount
+                                          samplesPerFrame:opusConfig->samplesPerFrame];
+    if (macAudio == nil) {
+        Log(LOG_E, @"Failed to initialize macOS audio output");
+        return -1;
+    }
+    macOpusDecoder = opus_multistream_decoder_create(opusConfig->sampleRate,
+                                                     opusConfig->channelCount,
+                                                     opusConfig->streams,
+                                                     opusConfig->coupledStreams,
+                                                     opusConfig->mapping,
+                                                     &err);
+    if (macOpusDecoder == NULL) {
+        Log(LOG_E, @"Failed to create Opus decoder");
+        ArCleanup();
+        return -1;
+    }
+    if (![macAudio start]) {
+        Log(LOG_E, @"Failed to start macOS audio output");
+        ArCleanup();
+        return -1;
+    }
+    return 0;
+#elif TARGET_OS_VISION
     audioRenderer = [[CoreAudioRenderer alloc] initWithConfig:opusConfig];
     if (!audioRenderer) {
         Log(LOG_E, @"Failed to initialize audio subsystem\n");
@@ -300,26 +336,37 @@ int ArInit(int audioConfiguration, POPUS_MULTISTREAM_CONFIGURATION opusConfig, v
     [[AVAudioSession sharedInstance] setCategory:AVAudioSessionCategoryPlayback withOptions:AVAudioSessionCategoryOptionMixWithOthers error:nil];
     
     return 0;
-#endif // TARGET_OS_VISION
+#endif
 }
 
 void ArStart(void) {
-#ifdef TARGET_OS_VISION
+#if TARGET_OS_OSX
+    [macAudio start];
+#elif TARGET_OS_VISION
     audioIsStopping = false;
     [audioRenderer start];
-#endif // TARGET_OS_VISION
+#endif
 }
 
 void ArStop(void) {
-#ifdef TARGET_OS_VISION
+#if TARGET_OS_OSX
+    [macAudio stop];
+#elif TARGET_OS_VISION
     [audioRenderer stop];
     audioIsStopping = true;
-#endif // TARGET_OS_VISION
+#endif
 }
 
 void ArCleanup(void)
 {
-#ifdef TARGET_OS_VISION
+#if TARGET_OS_OSX
+    if (macOpusDecoder != NULL) {
+        opus_multistream_decoder_destroy(macOpusDecoder);
+        macOpusDecoder = NULL;
+    }
+    [macAudio stop];
+    macAudio = nil;
+#elif TARGET_OS_VISION
     if (visionOpusDecoder != NULL) {
         opus_multistream_decoder_destroy(visionOpusDecoder);
         visionOpusDecoder = NULL;
@@ -351,7 +398,37 @@ void ArCleanup(void)
 
 void ArDecodeAndPlaySample(char* sampleData, int sampleLength)
 {
-#ifdef TARGET_OS_VISION
+#if TARGET_OS_OSX
+    if (macOpusDecoder == NULL || macAudio == nil) {
+        return;
+    }
+    if (LiGetPendingAudioDuration() > 30) {
+        return;
+    }
+
+    void *raw = [macAudio rawBuffer];
+    int decodeLen = opus_multistream_decode(macOpusDecoder, (unsigned char *)sampleData, sampleLength,
+                                            (short *)raw, macAudioConfig.samplesPerFrame, 0);
+    if (decodeLen > 0) {
+        if (volume != 127) {
+            float scale = (float)volume / 127.0f;
+            short *samples = (short *)raw;
+            int count = decodeLen * macAudioConfig.channelCount;
+            for (int i = 0; i < count; i++) {
+                int scaled = (int)(samples[i] * scale);
+                if (scaled > 32767) {
+                    scaled = 32767;
+                }
+                if (scaled < -32768) {
+                    scaled = -32768;
+                }
+                samples[i] = (short)scaled;
+            }
+        }
+        int nbytes = (int)sizeof(short) * decodeLen * macAudioConfig.channelCount;
+        [macAudio enqueuePCM:raw length:nbytes];
+    }
+#elif TARGET_OS_VISION
     if (audioIsStopping) return;
 
     CFTimeInterval decodeStartTime = CACurrentMediaTime();

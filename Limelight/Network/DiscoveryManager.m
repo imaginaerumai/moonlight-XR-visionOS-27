@@ -132,6 +132,8 @@
     NSString* prohibitedAddressMessage = [NSString stringWithFormat: @"Moonlight only supports adding PCs on your local network on %s.",
     #if TARGET_OS_TV
                                    "tvOS"
+    #elif TARGET_OS_OSX
+                                   "macOS"
     #else
                                    "iOS"
     #endif

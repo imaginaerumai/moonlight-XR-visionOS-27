@@ -7,11 +7,7 @@
 //
 
 #import <Foundation/Foundation.h>
-
-@class ControllerSupport;
-@class StreamConfiguration;
-
-@interface OnScreenControls : NSObject
+#include <TargetConditionals.h>
 
 typedef NS_ENUM(NSInteger, OnScreenControlsLevel) {
     OnScreenControlsLevelOff,
@@ -25,6 +21,12 @@ typedef NS_ENUM(NSInteger, OnScreenControlsLevel) {
     OnScreenControlsLevelAutoGCExtendedGamepadWithStickButtons
 };
 
+#if TARGET_OS_IPHONE
+@class ControllerSupport;
+@class StreamConfiguration;
+
+@interface OnScreenControls : NSObject
+
 - (id) initWithView:(UIView*)view controllerSup:(ControllerSupport*)controllerSupport streamConfig:(StreamConfiguration*)streamConfig;
 - (BOOL) handleTouchDownEvent:(NSSet*)touches;
 - (BOOL) handleTouchUpEvent:(NSSet*)touches;
@@ -34,3 +36,4 @@ typedef NS_ENUM(NSInteger, OnScreenControlsLevel) {
 - (void) show;
 
 @end
+#endif

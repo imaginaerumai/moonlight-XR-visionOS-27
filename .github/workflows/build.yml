@@ -1,0 +1,32 @@
+name: Build
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  moonlight-common-c:
+    name: moonlight-common-c (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Install compilers
+        run: sudo apt-get update && sudo apt-get install -y cmake g++ pkg-config libssl-dev
+      - name: Check visionOS and macOS target layout
+        run: python3 BuildScripts/verify-targets.py
+      - name: Build moonlight-common-c
+        working-directory: moonlight-common/moonlight-common-c
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=g++ && cmake --build build
+
+  apple:
+    name: visionOS and macOS (Xcode)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Build available Apple SDKs
+        run: bash BuildScripts/ci-apple.sh

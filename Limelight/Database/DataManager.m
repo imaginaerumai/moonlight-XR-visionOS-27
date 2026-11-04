@@ -18,14 +18,22 @@
 - (id) init {
     self = [super init];
     
-    // HACK: Avoid calling [UIApplication delegate] off the UI thread to keep
+    // HACK: Avoid calling the application delegate off the UI thread to keep
     // Main Thread Checker happy.
     if ([NSThread isMainThread]) {
+#if TARGET_OS_OSX
+        _appDelegate = (AppDelegate *)[NSApp delegate];
+#else
         _appDelegate = (AppDelegate *)[[UIApplication sharedApplication] delegate];
+#endif
     }
     else {
         dispatch_sync(dispatch_get_main_queue(), ^{
+#if TARGET_OS_OSX
+            self->_appDelegate = (AppDelegate *)[NSApp delegate];
+#else
             self->_appDelegate = (AppDelegate *)[[UIApplication sharedApplication] delegate];
+#endif
         });
     }
     

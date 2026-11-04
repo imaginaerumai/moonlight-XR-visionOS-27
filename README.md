@@ -30,6 +30,27 @@ I use Moonlight XrOS on Apple Vision Pro with a Bluetooth mouse to play PC games
 4. Pair your Vision Pro in **Window > Devices and Simulators**. On the Vision Pro, turn on **Settings > Privacy & Security > Developer Mode** (this option appears only after you start pairing).
 5. Select your Vision Pro as the run destination and press **Run**.
 
+Command line, visionOS Simulator (requires Xcode with the visionOS 27 SDK):
+
+```sh
+git submodule update --init --recursive
+xcodebuild -project Moonlight.xcodeproj -scheme "Moonlight XrOS" -configuration Debug -sdk xrsimulator -destination 'generic/platform=visionOS Simulator' CODE_SIGNING_ALLOWED=NO build
+```
+
+Signing for a device still needs your Apple ID in Xcode. The checked-in entitlements file is empty so a free Personal Team can provision it.
+
+## Build the macOS app
+
+Scheme **Moonlight macOS** is a native Mac client (macOS 14 or newer). It shares the streaming core with the visionOS app and decodes H.264 and HEVC with VideoToolbox. It does not request AV1. The first build downloads and compiles libopus for the Mac; the visionOS, iOS, and tvOS libraries are already in the repo.
+
+```sh
+git clone --recursive https://github.com/imaginaerumai/moonlight-XR-visionOS-27.git
+cd moonlight-XR-visionOS-27
+xcodebuild -project Moonlight.xcodeproj -scheme "Moonlight macOS" -configuration Debug -sdk macosx CODE_SIGNING_ALLOWED=NO build
+```
+
+Or open `Moonlight.xcodeproj`, select **Moonlight macOS**, and press Run. Ad-hoc signing is enough; no paid team is required.
+
 ## License
 
 This fork is licensed under the [GNU GPL v3](LICENSE.txt), the same license as Moonlight and Moonlight XrOS. All upstream credits below remain in effect.

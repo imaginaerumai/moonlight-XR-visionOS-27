@@ -11,7 +11,6 @@
 #import "HttpManager.h"
 #import "Utils.h"
 
-#import "StreamView.h"
 #import "ServerInfoResponse.h"
 #import "HttpResponse.h"
 #import "HttpRequest.h"
@@ -24,7 +23,6 @@
 @implementation StreamManager {
     StreamConfiguration* _config;
 
-    UIView* _renderView;
     id<ConnectionCallbacks> _callbacks;
     Connection* _connection;
     NSOperationQueue* _connectionQueue;

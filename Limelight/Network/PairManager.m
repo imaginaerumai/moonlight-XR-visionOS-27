@@ -14,6 +14,12 @@
 #import "ServerInfoResponse.h"
 
 #include <dispatch/dispatch.h>
+#include <TargetConditionals.h>
+
+#if !TARGET_OS_IPHONE
+typedef uintptr_t UIBackgroundTaskIdentifier;
+static const UIBackgroundTaskIdentifier UIBackgroundTaskInvalid = (UIBackgroundTaskIdentifier)-1;
+#endif
 
 @implementation PairManager {
     HttpManager* _httpManager;
@@ -59,9 +65,11 @@
      withFallbackError:(NSString*)errorMsg {
     [_httpManager executeRequestSynchronously:[HttpRequest requestWithUrlRequest:[_httpManager newUnpairRequest]]];
     
+#if TARGET_OS_IPHONE
     if (bgId != UIBackgroundTaskInvalid) {
         [[UIApplication sharedApplication] endBackgroundTask:bgId];
     }
+#endif
     
     if (![resp isStatusOk]) {
         // Use the response error if the request failed
@@ -72,9 +80,11 @@
 }
 
 - (void) finishPairing:(UIBackgroundTaskIdentifier)bgId withSuccess:(NSData*)derCertBytes {
+#if TARGET_OS_IPHONE
     if (bgId != UIBackgroundTaskInvalid) {
         [[UIApplication sharedApplication] endBackgroundTask:bgId];
     }
+#endif
     
     [_callback pairSuccessful:derCertBytes];
 }
@@ -84,10 +94,14 @@
     Log(LOG_I, @"Pairing with generation %d server in state %@", serverMajorVersion, state);
     
     // Start a background task to help prevent the app from being killed
-    // while pairing is in progress.
+    // while pairing is in progress. macOS has no UIApplication background tasks.
+#if TARGET_OS_IPHONE
     UIBackgroundTaskIdentifier bgId = [[UIApplication sharedApplication] beginBackgroundTaskWithName:@"Pairing PC" expirationHandler:^{
         Log(LOG_W, @"Background pairing time has expired!");
     }];
+#else
+    UIBackgroundTaskIdentifier bgId = UIBackgroundTaskInvalid;
+#endif
     
     NSData* salt = [Utils randomBytes:16];
     NSData* saltedPIN = [self concatData:salt with:[PIN dataUsingEncoding:NSUTF8StringEncoding]];
